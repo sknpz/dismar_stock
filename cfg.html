@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dismar — Gerenciamento de Estoque</title>
+  <link rel="icon" type="image/png" href="dismar_PNG.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    /* Tema escuro */
+    body.dark {
+      --bg: #1e1e1e;
+      --card: #2c2c2c;
+      --accent: #d94b4b;
+      --muted: #aaa;
+      color: #f0f0f0;
+    }
+    body.dark .sidebar {
+      background: linear-gradient(180deg, var(--card), #333);
+    }
+    body.dark .search input {
+      background: #444;
+      color: white;
+    }
+    body.dark table th,
+    body.dark table td {
+      border-color: rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>DISMAR</h1>
+          <div class="small">Gerenciamento de Estoque</div>
+        </div>
+      </div>
+
+      <nav>
+        <ul>
+          <li><a href="index.html">Dashboard</a></li>
+          <li><a href="produtos.html">Produtos</a></li>
+          <li><a href="fornecedores.html">Fornecedores</a></li>
+          <li><a href="cfg.html" class="active">Configurações</a></li>
+        </ul>
+      </nav>
+
+      <div style="margin-top:18px">
+        <div class="small">Versão</div>
+        <div class="tag">Dismar 1.0</div>
+      </div>
+    </aside>
+
+    <main class="main">
+        <header class="header"><h2>Configurações</h2></header>
+        <section class="card">
+          <form id="cfgForm">
+            <label>Moeda</label>
+            <select name="currency">
+              <option value="BRL">Real (R$)</option>
+              <option value="USD">Dólar ($)</option>
+              <option value="EUR">Euro (€)</option>
+            </select>
+            <label>Tema</label>
+            <select name="theme">
+              <option value="light">Claro</option>
+              <option value="dark">Escuro</option>
+            </select>
+            <div class="right"><button type="submit" class="btn">Salvar</button></div>
+          </form>
+        </section>
+      </main>
+    </div>
+  
+    <script>
+      const STORAGE_KEY="dismar_cfg_v1";
+      const form=document.getElementById("cfgForm");
+  
+      // Carregar configs
+      const cfg=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
+      if(cfg.currency) form.currency.value=cfg.currency;
+      if(cfg.theme){
+        form.theme.value=cfg.theme;
+        applyTheme(cfg.theme);
+      }
+  
+      // Salvar configs
+      form.onsubmit=e=>{
+        e.preventDefault();
+        const data={
+          currency: form.currency.value,
+          theme: form.theme.value
+        };
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+        applyTheme(data.theme);
+        alert("Configurações salvas!");
+      };
+  
+      // Função aplica tema
+      function applyTheme(theme){
+        if(theme==="dark"){ document.body.classList.add("dark"); }
+        else { document.body.classList.remove("dark"); }
+      }
+    </script>
+  </body>
+  </html>
