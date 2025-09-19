@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dismar — Gerenciamento de Estoque</title>
+  <link rel="icon" type="image/png" href="dismar_PNG.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>DISMAR</h1>
+          <div class="small">Gerenciamento de Estoque</div>
+        </div>
+      </div>
+
+      <nav>
+        <ul>
+          <li><a href="index.html">Dashboard</a></li>
+          <li><a href="produtos.html" class="active">Produtos</a></li>
+          <li><a href="fornecedores.html">Fornecedores</a></li>
+          <li><a href="cfg.html">Configurações</a></li>
+        </ul>
+      </nav>
+
+      <div style="margin-top:18px">
+        <div class="small">Versão</div>
+        <div class="tag">Dismar 1.0</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="header">
+        <div class="search">
+          <input id="q" placeholder="Buscar produtos..." />
+        </div>
+        <button class="btn" id="addBtn">+ Novo Produto</button>
+      </header>
+
+      <section class="card table-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+          <h2 style="margin:0">Lista de Produtos</h2>
+        </div>
+
+        <div id="tableContainer"></div>
+        <div id="empty" class="empty" hidden>
+          Nenhum produto cadastrado.
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'dismar_products_v1';
+    let products = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+
+    const q = document.getElementById('q');
+    const tableContainer = document.getElementById('tableContainer');
+    const empty = document.getElementById('empty');
+
+    function formatMoney(v){
+      return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+    }
+
+    function render(list=products){
+      if(!list.length){
+        tableContainer.innerHTML = '';
+        empty.hidden = false;
+        return;
+      }
+      empty.hidden = true;
+      const rows = list.map(p=>`
+        <tr>
+          <td>${p.name}</td>
+          <td><span class="tag">${p.sku||'-'}</span></td>
+          <td>${p.category||'-'}</td>
+          <td>${p.qty}</td>
+          <td>${formatMoney(Number(p.price))}</td>
+        </tr>`).join('');
+
+      tableContainer.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>SKU</th>
+              <th>Categoria</th>
+              <th>Qtd</th>
+              <th>Preço</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    q.addEventListener('input', ()=>{
+      const term = q.value.trim().toLowerCase();
+      const filtered = products.filter(p=>[p.name,p.sku,p.category].join(' ').toLowerCase().includes(term));
+      render(filtered);
+    });
+
+    render();
+
+    function formatMoney(v){
+  const cfg = JSON.parse(localStorage.getItem("dismar_cfg_v1") || "{}");
+  const currency = cfg.currency || "BRL"; // padrão BRL
+  const locales = {
+    "BRL": "pt-BR",
+    "USD": "en-US",
+    "EUR": "de-DE"
+  };
+  return v.toLocaleString(locales[currency] || "pt-BR", {
+    style: "currency",
+    currency: currency
+  });
+}
+
+  </script>
+</body>
+</html>
