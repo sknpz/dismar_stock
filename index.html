@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dismar — Gerenciamento de Estoque</title>
+  <link rel="icon" type="image/png" href="dismar_PNG.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>DISMAR</h1>
+          <div class="small">Gerenciamento de Estoque</div>
+        </div>
+      </div>
+
+      <nav>
+        <ul>
+          <li><a href="index.html" class="active">Dashboard</a></li>
+          <li><a href="produtos.html">Produtos</a></li>
+          <li><a href="fornecedores.html">Fornecedores</a></li>
+          <li><a href="cfg.html">Configurações</a></li>
+        </ul>
+      </nav>
+
+      <div style="margin-top:18px">
+        <div class="small">Versão</div>
+        <div class="tag">Dismar 1.0</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="header">
+        <div class="search">
+          <input id="q" placeholder="Buscar produtos, categorias, códigos..." />
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="importBtn">Importar CSV</button>
+          <button class="btn" id="addBtn">+ Novo Produto</button>
+        </div>
+      </header>
+
+      <section class="grid" aria-label="Indicadores">
+        <div class="card">
+          <div class="small">Total de produtos</div>
+          <div class="big" id="totalProducts">0</div>
+        </div>
+        <div class="card">
+          <div class="small">Quantidade em estoque</div>
+          <div class="big" id="totalQty">0</div>
+        </div>
+        <div class="card">
+          <div class="small">Valor estimado</div>
+          <div class="big" id="totalValue">R$ 0,00</div>
+        </div>
+      </section>
+
+      <section class="card table-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+          <h2 style="margin:0">Produtos</h2>
+          <div class="small">Lista de produtos cadastrados</div>
+        </div>
+
+        <div id="tableContainer"></div>
+        <div id="empty" class="empty" hidden>
+          Nenhum produto cadastrado. Clique em "Novo Produto" para começar.
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Modal de cadastro -->
+  <div class="modal" id="modal">
+    <div class="dialog" role="dialog" aria-modal="true">
+      <h3 id="modalTitle">Novo produto</h3>
+      <form id="productForm">
+        <div class="row" style="margin-bottom:8px">
+          <div style="flex:1">
+            <label>Nome</label>
+            <input name="name" required />
+          </div>
+          <div style="width:120px">
+            <label>SKU</label>
+            <input name="sku" />
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <div style="flex:1">
+            <label>Categoria</label>
+            <input name="category" />
+          </div>
+          <div style="width:140px">
+            <label>Quantidade</label>
+            <input name="qty" type="number" min="0" value="0" required />
+          </div>
+          <div style="width:160px">
+            <label>Preço unitário (R$)</label>
+            <input name="price" type="number" min="0" step="0.01" value="0.00" required />
+          </div>
+        </div>
+        <div class="right">
+          <button type="button" class="btn secondary" id="cancelBtn">Cancelar</button>
+          <button type="submit" class="btn">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Simples armazenamento em localStorage para demo
+    const STORAGE_KEY = 'dismar_products_v1'
+    let products = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || sampleData()
+
+    const q = document.getElementById('q')
+    const addBtn = document.getElementById('addBtn')
+    const modal = document.getElementById('modal')
+    const productForm = document.getElementById('productForm')
+    const cancelBtn = document.getElementById('cancelBtn')
+    const tableContainer = document.getElementById('tableContainer')
+    const empty = document.getElementById('empty')
+
+    function sampleData(){
+      const s = [
+        {id:id(), name:'Parafuso M4 x 12mm', sku:'P-M4-12', category:'Fixação', qty:120, price:0.12},
+        {id:id(), name:'Óleo Lubrificante 1L', sku:'OL-1L', category:'Lubrificantes', qty:24, price:15.50},
+        {id:id(), name:'Filtro de Ar', sku:'FA-203', category:'Manutenção', qty:8, price:55.00}
+      ]
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+      return s
+    }
+
+    function id(){return 'p_' + Math.random().toString(36).slice(2,9)}
+
+    function formatMoney(v){
+      return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})
+    }
+
+    function render(){
+      if(!products.length){
+        tableContainer.innerHTML = '';
+        empty.hidden = false; updateStats(); return
+      }
+      empty.hidden = true
+      updateStats()
+
+      const rows = products.map(p=>`
+        <tr data-id="${p.id}">
+          <td>${p.name}</td>
+          <td><span class="tag">${p.sku||'-'}</span></td>
+          <td>${p.category||'-'}</td>
+          <td>${p.qty}</td>
+          <td>${formatMoney(Number(p.price))}</td>
+          <td>
+            <div class="controls">
+              <button class="btn secondary" data-action="edit">Editar</button>
+              <button class="btn" data-action="delete" style="background:${'var(--danger)'}">Remover</button>
+            </div>
+          </td>
+        </tr>
+      `).join('')
+
+      tableContainer.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>SKU</th>
+              <th>Categoria</th>
+              <th>Qtd</th>
+              <th>Preço</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `
+
+      // attach events
+      tableContainer.querySelectorAll('button[data-action]').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          const tr = e.target.closest('tr')
+          const id = tr.dataset.id
+          const action = e.target.dataset.action
+          if(action==='delete') removeProduct(id)
+          if(action==='edit') openEdit(id)
+        })
+      })
+    }
+
+    function updateStats(){
+      const totalProducts = products.length
+      const totalQty = products.reduce((s,p)=>s+p.qty,0)
+      const totalValue = products.reduce((s,p)=>s + (p.qty * Number(p.price)),0)
+      document.getElementById('totalProducts').textContent = totalProducts
+      document.getElementById('totalQty').textContent = totalQty
+      document.getElementById('totalValue').textContent = formatMoney(totalValue)
+    }
+
+    function openModal(){ modal.classList.add('open'); document.querySelector('#modal input[name="name"]').focus() }
+    function closeModal(){ modal.classList.remove('open'); productForm.reset(); productForm.dataset.editId = '' }
+
+    addBtn.addEventListener('click', ()=>{ document.getElementById('modalTitle').textContent='Novo produto'; openModal() })
+    cancelBtn.addEventListener('click', closeModal)
+
+    productForm.addEventListener('submit', (e)=>{
+      e.preventDefault()
+      const form = new FormData(productForm)
+      const data = {
+        id: productForm.dataset.editId || id(),
+        name: form.get('name').trim(),
+        sku: form.get('sku').trim(),
+        category: form.get('category').trim(),
+        qty: Number(form.get('qty')),
+        price: Number(form.get('price'))
+      }
+      if(productForm.dataset.editId){
+        products = products.map(p=> p.id===data.id ? data : p)
+      } else {
+        products.unshift(data)
+      }
+      saveAndRender()
+      closeModal()
+    })
+
+    function saveAndRender(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); render() }
+
+    function removeProduct(id){
+      if(!confirm('Remover este produto?')) return
+      products = products.filter(p=>p.id !== id)
+      saveAndRender()
+    }
+
+    function openEdit(id){
+      const p = products.find(x=>x.id===id)
+      if(!p) return
+      productForm.dataset.editId = id
+      document.getElementById('modalTitle').textContent = 'Editar produto'
+      productForm.name.value = p.name
+      productForm.sku.value = p.sku
+      productForm.category.value = p.category
+      productForm.qty.value = p.qty
+      productForm.price.value = p.price
+      openModal()
+    }
+
+    q.addEventListener('input', ()=>{
+      const term = q.value.trim().toLowerCase()
+      const filtered = products.filter(p=>[p.name,p.sku,p.category].join(' ').toLowerCase().includes(term))
+      renderFiltered(filtered)
+    })
+
+    function renderFiltered(list){
+      if(!list.length){ tableContainer.innerHTML=''; empty.hidden=false; return }
+      empty.hidden = true
+      const rows = list.map(p=>`
+        <tr data-id="${p.id}">
+          <td>${p.name}</td>
+          <td><span class="tag">${p.sku||'-'}</span></td>
+          <td>${p.category||'-'}</td>
+          <td>${p.qty}</td>
+          <td>${formatMoney(Number(p.price))}</td>
+          <td>
+            <div class="controls">
+              <button class="btn secondary" data-action="edit">Editar</button>
+              <button class="btn" data-action="delete" style="background:${'var(--danger)'}">Remover</button>
+            </div>
+          </td>
+        </tr>
+      `).join('')
+      tableContainer.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>SKU</th>
+              <th>Categoria</th>
+              <th>Qtd</th>
+              <th>Preço</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `
+      tableContainer.querySelectorAll('button[data-action]').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          const tr = e.target.closest('tr')
+          const id = tr.dataset.id
+          const action = e.target.dataset.action
+          if(action==='delete') removeProduct(id)
+          if(action==='edit') openEdit(id)
+        })
+      })
+    }
+
+    // Inicialização
+    render()
+
+    // Atalho: fechar modal ao clicar fora
+    modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal() })
+
+    // Botão de importar - apenas placeholder
+    document.getElementById('importBtn').addEventListener('click', ()=> alert('Importar CSV - recurso em desenvolvimento'))
+
+    // Exporte/limpe para desenvolvimento (console helpers)
+    window.Dismar = {products, saveAndRender}
+
+    function formatMoney(v){
+  const cfg = JSON.parse(localStorage.getItem("dismar_cfg_v1") || "{}");
+  const currency = cfg.currency || "BRL"; // padrão BRL
+  const locales = {
+    "BRL": "pt-BR",
+    "USD": "en-US",
+    "EUR": "de-DE"
+  };
+  return v.toLocaleString(locales[currency] || "pt-BR", {
+    style: "currency",
+    currency: currency
+  });
+}
+
+  </script>
+</body>
+</html>
