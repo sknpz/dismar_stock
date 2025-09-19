@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,8 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <div class="app">
     <aside class="sidebar" aria-label="Navegação principal">
@@ -127,35 +129,35 @@
     const tableContainer = document.getElementById('tableContainer')
     const empty = document.getElementById('empty')
 
-    function sampleData(){
+    function sampleData() {
       const s = [
-        {id:id(), name:'Parafuso M4 x 12mm', sku:'P-M4-12', category:'Fixação', qty:120, price:0.12},
-        {id:id(), name:'Óleo Lubrificante 1L', sku:'OL-1L', category:'Lubrificantes', qty:24, price:15.50},
-        {id:id(), name:'Filtro de Ar', sku:'FA-203', category:'Manutenção', qty:8, price:55.00}
+        { id: id(), name: 'Parafuso M4 x 12mm', sku: 'P-M4-12', category: 'Fixação', qty: 120, price: 0.12 },
+        { id: id(), name: 'Óleo Lubrificante 1L', sku: 'OL-1L', category: 'Lubrificantes', qty: 24, price: 15.50 },
+        { id: id(), name: 'Filtro de Ar', sku: 'FA-203', category: 'Manutenção', qty: 8, price: 55.00 }
       ]
       localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
       return s
     }
 
-    function id(){return 'p_' + Math.random().toString(36).slice(2,9)}
+    function id() { return 'p_' + Math.random().toString(36).slice(2, 9) }
 
-    function formatMoney(v){
-      return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})
+    function formatMoney(v) {
+      return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     }
 
-    function render(){
-      if(!products.length){
+    function render() {
+      if (!products.length) {
         tableContainer.innerHTML = '';
         empty.hidden = false; updateStats(); return
       }
       empty.hidden = true
       updateStats()
 
-      const rows = products.map(p=>`
+      const rows = products.map(p => `
         <tr data-id="${p.id}">
           <td>${p.name}</td>
-          <td><span class="tag">${p.sku||'-'}</span></td>
-          <td>${p.category||'-'}</td>
+          <td><span class="tag">${p.sku || '-'}</span></td>
+          <td>${p.category || '-'}</td>
           <td>${p.qty}</td>
           <td>${formatMoney(Number(p.price))}</td>
           <td>
@@ -186,33 +188,33 @@
       `
 
       // attach events
-      tableContainer.querySelectorAll('button[data-action]').forEach(btn=>{
-        btn.addEventListener('click', (e)=>{
+      tableContainer.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
           const tr = e.target.closest('tr')
           const id = tr.dataset.id
           const action = e.target.dataset.action
-          if(action==='delete') removeProduct(id)
-          if(action==='edit') openEdit(id)
+          if (action === 'delete') removeProduct(id)
+          if (action === 'edit') openEdit(id)
         })
       })
     }
 
-    function updateStats(){
+    function updateStats() {
       const totalProducts = products.length
-      const totalQty = products.reduce((s,p)=>s+p.qty,0)
-      const totalValue = products.reduce((s,p)=>s + (p.qty * Number(p.price)),0)
+      const totalQty = products.reduce((s, p) => s + p.qty, 0)
+      const totalValue = products.reduce((s, p) => s + (p.qty * Number(p.price)), 0)
       document.getElementById('totalProducts').textContent = totalProducts
       document.getElementById('totalQty').textContent = totalQty
       document.getElementById('totalValue').textContent = formatMoney(totalValue)
     }
 
-    function openModal(){ modal.classList.add('open'); document.querySelector('#modal input[name="name"]').focus() }
-    function closeModal(){ modal.classList.remove('open'); productForm.reset(); productForm.dataset.editId = '' }
+    function openModal() { modal.classList.add('open'); document.querySelector('#modal input[name="name"]').focus() }
+    function closeModal() { modal.classList.remove('open'); productForm.reset(); productForm.dataset.editId = '' }
 
-    addBtn.addEventListener('click', ()=>{ document.getElementById('modalTitle').textContent='Novo produto'; openModal() })
+    addBtn.addEventListener('click', () => { document.getElementById('modalTitle').textContent = 'Novo produto'; openModal() })
     cancelBtn.addEventListener('click', closeModal)
 
-    productForm.addEventListener('submit', (e)=>{
+    productForm.addEventListener('submit', (e) => {
       e.preventDefault()
       const form = new FormData(productForm)
       const data = {
@@ -223,8 +225,8 @@
         qty: Number(form.get('qty')),
         price: Number(form.get('price'))
       }
-      if(productForm.dataset.editId){
-        products = products.map(p=> p.id===data.id ? data : p)
+      if (productForm.dataset.editId) {
+        products = products.map(p => p.id === data.id ? data : p)
       } else {
         products.unshift(data)
       }
@@ -232,17 +234,17 @@
       closeModal()
     })
 
-    function saveAndRender(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); render() }
+    function saveAndRender() { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); render() }
 
-    function removeProduct(id){
-      if(!confirm('Remover este produto?')) return
-      products = products.filter(p=>p.id !== id)
+    function removeProduct(id) {
+      if (!confirm('Remover este produto?')) return
+      products = products.filter(p => p.id !== id)
       saveAndRender()
     }
 
-    function openEdit(id){
-      const p = products.find(x=>x.id===id)
-      if(!p) return
+    function openEdit(id) {
+      const p = products.find(x => x.id === id)
+      if (!p) return
       productForm.dataset.editId = id
       document.getElementById('modalTitle').textContent = 'Editar produto'
       productForm.name.value = p.name
@@ -253,20 +255,20 @@
       openModal()
     }
 
-    q.addEventListener('input', ()=>{
+    q.addEventListener('input', () => {
       const term = q.value.trim().toLowerCase()
-      const filtered = products.filter(p=>[p.name,p.sku,p.category].join(' ').toLowerCase().includes(term))
+      const filtered = products.filter(p => [p.name, p.sku, p.category].join(' ').toLowerCase().includes(term))
       renderFiltered(filtered)
     })
 
-    function renderFiltered(list){
-      if(!list.length){ tableContainer.innerHTML=''; empty.hidden=false; return }
+    function renderFiltered(list) {
+      if (!list.length) { tableContainer.innerHTML = ''; empty.hidden = false; return }
       empty.hidden = true
-      const rows = list.map(p=>`
+      const rows = list.map(p => `
         <tr data-id="${p.id}">
           <td>${p.name}</td>
-          <td><span class="tag">${p.sku||'-'}</span></td>
-          <td>${p.category||'-'}</td>
+          <td><span class="tag">${p.sku || '-'}</span></td>
+          <td>${p.category || '-'}</td>
           <td>${p.qty}</td>
           <td>${formatMoney(Number(p.price))}</td>
           <td>
@@ -294,13 +296,13 @@
           </tbody>
         </table>
       `
-      tableContainer.querySelectorAll('button[data-action]').forEach(btn=>{
-        btn.addEventListener('click', (e)=>{
+      tableContainer.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
           const tr = e.target.closest('tr')
           const id = tr.dataset.id
           const action = e.target.dataset.action
-          if(action==='delete') removeProduct(id)
-          if(action==='edit') openEdit(id)
+          if (action === 'delete') removeProduct(id)
+          if (action === 'edit') openEdit(id)
         })
       })
     }
@@ -309,28 +311,39 @@
     render()
 
     // Atalho: fechar modal ao clicar fora
-    modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal() })
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal() })
 
     // Botão de importar - apenas placeholder
-    document.getElementById('importBtn').addEventListener('click', ()=> alert('Importar CSV - recurso em desenvolvimento'))
+    document.getElementById('importBtn').addEventListener('click', () => alert('Importar CSV - recurso em desenvolvimento'))
 
     // Exporte/limpe para desenvolvimento (console helpers)
-    window.Dismar = {products, saveAndRender}
+    window.Dismar = { products, saveAndRender }
 
-    function formatMoney(v){
-  const cfg = JSON.parse(localStorage.getItem("dismar_cfg_v1") || "{}");
-  const currency = cfg.currency || "BRL"; // padrão BRL
-  const locales = {
-    "BRL": "pt-BR",
-    "USD": "en-US",
-    "EUR": "de-DE"
-  };
-  return v.toLocaleString(locales[currency] || "pt-BR", {
-    style: "currency",
-    currency: currency
-  });
-}
+    const RATES = {
+      BRL: 1,       // base
+      USD: 0.19,    // 1 BRL ≈ 0.19 USD
+      EUR: 0.18     // 1 BRL ≈ 0.18 EUR
+    }
+
+    function formatMoney(v) {
+      const cfg = JSON.parse(localStorage.getItem("dismar_cfg_v1") || "{}");
+      const currency = cfg.currency || "BRL"; // padrão BRL
+      const locales = {
+        "BRL": "pt-BR",
+        "USD": "en-US",
+        "EUR": "de-DE"
+      };
+
+      const rate = RATES[currency] || 1;
+      const converted = v * rate;
+
+      return v.toLocaleString(locales[currency] || "pt-BR", {
+        style: "currency",
+        currency: currency
+      });
+    }
 
   </script>
 </body>
+
 </html>
