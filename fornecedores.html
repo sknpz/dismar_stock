@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dismar — Gerenciamento de Estoque</title>
+  <link rel="icon" type="image/png" href="dismar_PNG.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>DISMAR</h1>
+          <div class="small">Gerenciamento de Estoque</div>
+        </div>
+      </div>
+
+      <nav>
+        <ul>
+          <li><a href="index.html">Dashboard</a></li>
+          <li><a href="produtos.html">Produtos</a></li>
+          <li><a href="fornecedores.html" class="active">Fornecedores</a></li>
+          <li><a href="cfg.html">Configurações</a></li>
+        </ul>
+      </nav>
+
+      <div style="margin-top:18px">
+        <div class="small">Versão</div>
+        <div class="tag">Dismar 1.0</div>
+      </div>
+    </aside>
+
+    <main class="main">
+        <header class="header">
+          <div class="search">
+            <input id="q" placeholder="Buscar fornecedores..." />
+          </div>
+          <button class="btn" id="addBtn">+ Novo Fornecedor</button>
+        </header>
+  
+        <section class="card table-wrap">
+          <h2>Lista de Fornecedores</h2>
+          <div id="tableContainer"></div>
+          <div id="empty" class="empty" hidden>Nenhum fornecedor cadastrado.</div>
+        </section>
+      </main>
+    </div>
+  
+    <!-- Modal -->
+    <div class="modal" id="modal">
+      <div class="dialog">
+        <h3 id="modalTitle">Novo fornecedor</h3>
+        <form id="supplierForm">
+          <div class="row" style="margin-bottom:8px">
+            <div style="flex:1">
+              <label>Nome</label>
+              <input name="name" required />
+            </div>
+            <div style="width:200px">
+              <label>CNPJ</label>
+              <input name="cnpj" />
+            </div>
+          </div>
+          <div class="row">
+            <div style="flex:1">
+              <label>Telefone</label>
+              <input name="phone" />
+            </div>
+            <div style="flex:1">
+              <label>E-mail</label>
+              <input type="email" name="email" />
+            </div>
+          </div>
+          <div class="right">
+            <button type="button" class="btn secondary" id="cancelBtn">Cancelar</button>
+            <button type="submit" class="btn">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  
+    <script>
+      const STORAGE_KEY = "dismar_suppliers_v1";
+      let suppliers = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  
+      const q = document.getElementById("q");
+      const modal = document.getElementById("modal");
+      const supplierForm = document.getElementById("supplierForm");
+      const addBtn = document.getElementById("addBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const tableContainer = document.getElementById("tableContainer");
+      const empty = document.getElementById("empty");
+  
+      function id(){ return "s_" + Math.random().toString(36).slice(2,9); }
+  
+      function render(list=suppliers){
+        if(!list.length){ tableContainer.innerHTML=""; empty.hidden=false; return; }
+        empty.hidden = true;
+        const rows = list.map(s=>`
+          <tr data-id="${s.id}">
+            <td>${s.name}</td>
+            <td>${s.cnpj||"-"}</td>
+            <td>${s.phone||"-"}</td>
+            <td>${s.email||"-"}</td>
+            <td>
+              <div class="controls">
+                <button class="btn secondary" data-action="edit">Editar</button>
+                <button class="btn" data-action="delete" style="background:var(--danger)">Remover</button>
+              </div>
+            </td>
+          </tr>`).join("");
+        tableContainer.innerHTML = `
+          <table>
+            <thead>
+              <tr><th>Nome</th><th>CNPJ</th><th>Telefone</th><th>E-mail</th><th></th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+        tableContainer.querySelectorAll("button[data-action]").forEach(btn=>{
+          btn.addEventListener("click", e=>{
+            const id = e.target.closest("tr").dataset.id;
+            if(btn.dataset.action==="delete") removeSupplier(id);
+            if(btn.dataset.action==="edit") openEdit(id);
+          });
+        });
+      }
+  
+      function openModal(){ modal.classList.add("open"); supplierForm.name.focus(); }
+      function closeModal(){ modal.classList.remove("open"); supplierForm.reset(); supplierForm.dataset.editId=""; }
+  
+      addBtn.onclick = ()=>{ document.getElementById("modalTitle").textContent="Novo fornecedor"; openModal(); };
+      cancelBtn.onclick = closeModal;
+  
+      supplierForm.onsubmit = e=>{
+        e.preventDefault();
+        const data = {
+          id: supplierForm.dataset.editId || id(),
+          name: supplierForm.name.value.trim(),
+          cnpj: supplierForm.cnpj.value.trim(),
+          phone: supplierForm.phone.value.trim(),
+          email: supplierForm.email.value.trim(),
+        };
+        if(supplierForm.dataset.editId){
+          suppliers = suppliers.map(s=> s.id===data.id ? data : s);
+        } else {
+          suppliers.unshift(data);
+        }
+        saveAndRender(); closeModal();
+      };
+  
+      function saveAndRender(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(suppliers)); render(); }
+      function removeSupplier(id){ if(confirm("Remover fornecedor?")){ suppliers = suppliers.filter(s=>s.id!==id); saveAndRender(); } }
+      function openEdit(id){ 
+        const s = suppliers.find(x=>x.id===id); if(!s) return;
+        supplierForm.dataset.editId=id;
+        document.getElementById("modalTitle").textContent="Editar fornecedor";
+        supplierForm.name.value=s.name; supplierForm.cnpj.value=s.cnpj;
+        supplierForm.phone.value=s.phone; supplierForm.email.value=s.email;
+        openModal();
+      }
+  
+      q.oninput=()=>{ const term=q.value.toLowerCase(); render(suppliers.filter(s=>Object.values(s).join(" ").toLowerCase().includes(term))); };
+      modal.addEventListener("click", e=>{ if(e.target===modal) closeModal(); });
+  
+      render();
+    </script>
+  </body>
+  </html>
