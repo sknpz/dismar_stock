@@ -319,14 +319,6 @@
     // Exporte/limpe para desenvolvimento (console helpers)
     window.Dismar = { products, saveAndRender }
 
-    // Conversão de moedas (taxas fixas de exemplo)
-    const RATES = {
-      BRL: 1,       // base
-      USD: 0.19,    // 1 BRL ≈ 0.19 USD
-      EUR: 0.18     // 1 BRL ≈ 0.18 EUR
-    }
-
-    // Sobrescreve a função formatMoney para aplicar conversão real
     function formatMoney(v) {
       const cfg = JSON.parse(localStorage.getItem("dismar_cfg_v1") || "{}");
       const currency = cfg.currency || "BRL"; // padrão BRL
@@ -336,11 +328,7 @@
         "EUR": "de-DE"
       };
 
-      // Aplica taxa de conversão
-      const rate = RATES[currency] || 1;
-      const converted = v * rate;
-
-      return converted.toLocaleString(locales[currency] || "pt-BR", {
+      return v.toLocaleString(locales[currency] || "pt-BR", {
         style: "currency",
         currency: currency
       });
