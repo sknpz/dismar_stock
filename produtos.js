@@ -1,3 +1,14 @@
+    const STORAGE_KEY = 'dismar_products_v1';
+    let products = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+
+    const q = document.getElementById('q');
+    const tableContainer = document.getElementById('tableContainer');
+    const empty = document.getElementById('empty');
+
+    function formatMoney(v){
+      return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+    }
+    
     function render(list=products){
       if(!list.length){
         tableContainer.innerHTML = '';
