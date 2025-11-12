@@ -44,7 +44,6 @@
           <input id="q" placeholder="Buscar produtos, categorias, códigos..." />
         </div>
         <div class="actions">
-          <button class="btn secondary" id="importBtn">Importar CSV</button>
           <button class="btn" id="addBtn">+ Novo Produto</button>
         </div>
       </header>
@@ -312,9 +311,6 @@
 
     // Atalho: fechar modal ao clicar fora
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal() })
-
-    // Botão de importar - apenas placeholder
-    document.getElementById('importBtn').addEventListener('click', () => alert('Importar CSV - recurso em desenvolvimento'))
 
     // Exporte/limpe para desenvolvimento (console helpers)
     window.Dismar = { products, saveAndRender }
