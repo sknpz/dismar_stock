@@ -82,7 +82,7 @@
       const STORAGE_KEY="dismar_cfg_v1";
       const form=document.getElementById("cfgForm");
   
-      // Carregar configs
+      // Carrega as configs
       const cfg=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
       if(cfg.currency) form.currency.value=cfg.currency;
       if(cfg.theme){
@@ -90,7 +90,7 @@
         applyTheme(cfg.theme);
       }
   
-      // Salvar configs
+      // Salva as configs
       form.onsubmit=e=>{
         e.preventDefault();
         const data={

@@ -230,3 +230,23 @@ form input, form select{
     text-align:center; 
     color:var(--muted)
 }
+
+/* Tema escuro */
+body.dark {
+    --bg: #1e1e1e;
+    --card: #2c2c2c;
+    --accent: #d94b4b;
+    --muted: #aaa;
+    color: #f0f0f0;
+}
+body.dark .sidebar {
+    background: linear-gradient(180deg, var(--card), #333);
+}
+body.dark .search input {
+    background: #444;
+    color: white;
+}
+body.dark table th,
+body.dark table td {
+    border-color: rgba(255,255,255,0.1);
+}
