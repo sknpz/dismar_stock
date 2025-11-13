@@ -5,7 +5,22 @@
   --muted:#657786; 
   --danger:#e03e3e;
   --glass: rgba(15,108,255,0.08);
+  --text:#0b1220;
+  --border:rgba(11,18,32,0.04);
+  --input-bg:#ffffff;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+/* Tema Escuro */
+body.dark {
+  --bg: #1e1e1e;
+  --card: #2c2c2c;
+  --accent: #d94b4b;
+  --muted: #aaa;
+  --text: #f0f0f0;
+  --border: rgba(255,255,255,0.1);
+  --input-bg: #3a3a3a;
+  --glass: rgba(217,75,75,0.1);
 }
 
 *{
@@ -16,7 +31,7 @@ html,body{
     height:100%; 
     margin:0; 
     background:var(--bg); 
-    color:#0b1220
+    color:var(--text)
 }
 
 .app{
@@ -28,7 +43,11 @@ html,body{
 .sidebar{
     background:linear-gradient(180deg,var(--card),#f2f6ff); 
     padding:24px; 
-    border-right:1px solid rgba(11,18,32,0.04)
+    border-right:1px solid var(--border);
+}
+
+body.dark .sidebar {
+  background: linear-gradient(180deg, var(--card), #333);
 }
 
 .brand{
@@ -46,7 +65,8 @@ html,body{
 
 .brand h1{
     font-size:18px; 
-    margin:0
+    margin:0;
+    color:var(--text);
 }
 nav ul{
     list-style:none; 
@@ -96,8 +116,9 @@ header.header{
     width:100%; 
     padding:10px 12px; 
     border-radius:10px; 
-    border:1px solid rgba(11,18,32,0.06); 
-    background:white
+    border:1px solid var(--border); 
+    background:var(--input-bg);
+    color:var(--text);
 }
 
 .actions{
@@ -114,11 +135,10 @@ header.header{
     cursor:pointer
 }
 
-
 .btn.secondary{
     background:transparent; 
     color:var(--accent); 
-    border:1px solid var(--glass)
+    border:1px solid var(--accent);
 }
 
 .grid{
@@ -132,7 +152,7 @@ header.header{
     background:var(--card); 
     padding:16px; 
     border-radius:12px; 
-    box-shadow:0 1px 0 rgba(11,18,32,0.02)
+    box-shadow:0 1px 0 var(--border);
 }
 
 .small{
@@ -142,7 +162,8 @@ header.header{
 
 .big{
     font-size:24px; 
-    font-weight:700
+    font-weight:700;
+    color:var(--text);
 }
 
 .table-wrap{
@@ -158,7 +179,7 @@ table{
 th, td{
     padding:10px 8px; 
     text-align:left; 
-    border-bottom:1px solid rgba(11,18,32,0.04)
+    border-bottom:1px solid var(--border);
 }
 
 th{
@@ -169,7 +190,13 @@ td .tag{
     display:inline-block; 
     padding:6px 8px; 
     border-radius:8px; 
-    font-size:12px; background:#f2f4f7
+    font-size:12px; 
+    background:#f2f4f7;
+}
+
+body.dark td .tag {
+  background: #3a3a3a;
+  color: var(--text);
 }
 
 .controls{
@@ -188,6 +215,10 @@ td .tag{
     background:rgba(11,18,32,0.35)
 }
 
+body.dark .modal {
+  background:rgba(0,0,0,0.7);
+}
+
 .modal.open{
     display:flex
 }
@@ -200,6 +231,10 @@ td .tag{
     max-width:95%
 }
 
+.modal .dialog h3 {
+  color:var(--text);
+}
+
 form .row{
     display:flex; 
     gap:8px
@@ -208,14 +243,17 @@ form .row{
 form label{
     display:block; 
     font-size:13px;
-    margin-bottom:6px
+    margin-bottom:6px;
+    color:var(--text);
 }
 
 form input, form select{
     width:100%; 
     padding:8px; 
     border-radius:8px; 
-    border:1px solid rgba(11,18,32,0.06)
+    border:1px solid var(--border);
+    background:var(--input-bg);
+    color:var(--text);
 }
 
 .right{
@@ -231,20 +269,15 @@ form input, form select{
     color:var(--muted)
 }
 
-/* Tema escuro */
-body.dark-mode {
-  background-color: #121212;
-  color: #f5f5f5;
+h2, h3 {
+  color:var(--text);
 }
 
-/* Exemplo: ajustar cards, botões, etc. */
-.dark-mode header,
-.dark-mode nav,
-.dark-mode footer {
-  background-color: #1e1e1e;
+.tag {
+  background: #f2f4f7;
+  color: var(--text);
 }
 
-.dark-mode button {
-  background-color: #333;
-  color: #fff;
+body.dark .tag {
+  background: #3a3a3a;
 }

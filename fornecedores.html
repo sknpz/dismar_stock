@@ -84,9 +84,11 @@
         </form>
       </div>
     </div>
+
+    <script src="theme.js"></script>
   
     <script>
-      c
+      const STORAGE_KEY = "dismar_suppliers_v1";
       let suppliers = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   
       const q = document.getElementById("q");
@@ -169,32 +171,6 @@
       modal.addEventListener("click", e=>{ if(e.target===modal) closeModal(); });
   
       render();
-    
-      const body = document.body;
-
-      // Função para ler o JSON salvo no localStorage
-      function getConfig() {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved) : {};
-      } 
-
-      // Função para salvar o JSON atualizado
-      function saveConfig(config) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-      }
-
-      // Aplicar tema salvo ao carregar
-      const config = getConfig();
-      if (config.theme === "dark") {
-        body.classList.add("dark");
-      } 
-
-      // Alternar o tema e salvar
-      function toggleDarkMode() {
-        const isDark = body.classList.toggle("dark");
-        config.theme = isDark ? "dark" : "light";
-        saveConfig(config);
-      }
     </script>
   </body>
   </html>
