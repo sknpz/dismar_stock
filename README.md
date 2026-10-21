@@ -106,8 +106,8 @@ Data is currently stored locally in the browser using `localStorage`, allowing t
 | JavaScript   | Application logic and DOM manipulation |
 | LocalStorage | Browser-side data persistence          |
 | Google Fonts | Inter font family                      |
-
-> **Note:** The Supabase JavaScript library is currently included in the project, but application data is still persisted using `localStorage`.
+| PostgreSQL   | Relational database *(in progress, see [Data Model](#-data-model))* |
+| Flyway       | Versioned database migrations *(in progress)* |
 
 ---
 
@@ -120,6 +120,10 @@ dismar_stock/
 ├── script.js             # Application logic and data management
 ├── dismar_PNG.png        # Application icon
 ├── logo_dismar_PNG.png   # Project logo
+├── backend/
+│   └── src/main/resources/db/
+│       ├── migration/    # Flyway migrations (database schema)
+│       └── seed/         # Sample data for development
 ├── LICENSE               # MIT License
 └── README.md             # Project documentation
 ```
@@ -174,6 +178,72 @@ Clearing the browser's local storage will remove the saved inventory data.
 
 ---
 
+## 🗄️ Data Model
+
+The application is being migrated from `localStorage` to a **PostgreSQL** database (hosted on Supabase), accessed through a REST API. The schema is versioned with Flyway in [`V1__create_schema.sql`](backend/src/main/resources/db/migration/V1__create_schema.sql).
+
+```mermaid
+erDiagram
+    CATEGORY ||--o{ PRODUCT : classifies
+    SUPPLIER ||--o{ PRODUCT : supplies
+    PRODUCT  ||--o{ STOCK_MOVEMENT : "has history"
+
+    CATEGORY {
+        bigint id PK
+        varchar name UK "case-insensitive"
+        timestamptz created_at
+    }
+    SUPPLIER {
+        bigint id PK
+        varchar name
+        char cnpj UK "14 chars, alphanumeric-ready"
+        varchar phone
+        varchar email
+        varchar address
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    PRODUCT {
+        bigint id PK
+        varchar name
+        varchar sku UK
+        bigint category_id FK
+        bigint supplier_id FK
+        numeric unit_price ">= 0"
+        int quantity ">= 0"
+        int min_stock ">= 0"
+        boolean active "soft delete"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    STOCK_MOVEMENT {
+        bigint id PK
+        bigint product_id FK
+        varchar type "ENTRY | EXIT"
+        int quantity "> 0"
+        int previous_quantity
+        int new_quantity
+        varchar notes
+        timestamptz created_at
+    }
+```
+
+### Design decisions
+
+| Decision | Reason |
+| --- | --- |
+| **Categories in their own table** | Prevents the same category from being typed in different ways ("Tools", "tools", "Tool") and keeps reports consistent. Uniqueness is case-insensitive. |
+| **`ON DELETE RESTRICT` on supplier** | A supplier with linked products cannot be deleted. The database enforces this rule, so the UI isn't the only thing protecting it. |
+| **Products use soft delete (`active`)** | Stock movement history must keep pointing to the product it belongs to, so products are deactivated instead of deleted. |
+| **`CHECK` constraints on stock** | Negative stock, negative prices and movements whose balance doesn't add up (`new = previous ± quantity`) are rejected by the database itself. |
+| **`NUMERIC(12,2)` for prices** | Exact decimal arithmetic. Floating-point types cause rounding errors with money. |
+| **CNPJ stored without punctuation** | Avoids duplicates such as `11.222.333/0001-81` vs `11222333000181`. The format also accepts the alphanumeric CNPJ issued since July 2026. |
+| **Indexes on foreign keys** | PostgreSQL does not index foreign keys automatically, and these columns are used in joins and filters. |
+
+Sample data for development is available in [`dev_seed.sql`](backend/src/main/resources/db/seed/dev_seed.sql).
+
+---
+
 ## ⚠️ Current Limitations
 
 The current version does not yet include:
@@ -190,20 +260,21 @@ The current version does not yet include:
 
 ## 🗺️ Roadmap
 
-Future improvements may include:
+The project is evolving from a browser-only app into a full-stack application:
 
-* [ ] Integrate Supabase as the main database
-* [ ] Add user authentication
-* [ ] Add multi-user support
-* [ ] Add company/workspace accounts
-* [ ] Add CSV export
-* [ ] Add PDF report generation
-* [ ] Add interactive dashboard charts
-* [ ] Add automated tests
-* [ ] Improve mobile responsiveness
-* [ ] Add backup and restore functionality
-* [ ] Add cloud synchronization
-* [ ] Add advanced inventory analytics
+* [x] **Phase 0:** Front-end fixes (XSS protection, real dashboard metrics, modal bugs)
+* [x] **Phase 1:** Relational data model (PostgreSQL + Flyway migrations)
+* [ ] **Phase 2:** REST API with Java + Spring Boot
+* [ ] **Phase 3:** Front-end consuming the API instead of `localStorage`
+* [ ] **Phase 4:** User authentication with JWT
+* [ ] **Phase 5:** Automated tests (JUnit) and CI with GitHub Actions
+* [ ] **Phase 6:** Docker and cloud deployment
+
+Ideas for later:
+
+* [ ] CSV export and PDF reports
+* [ ] Interactive dashboard charts
+* [ ] Improved mobile responsiveness
 
 ---
 
