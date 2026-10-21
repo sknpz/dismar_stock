@@ -37,6 +37,22 @@
       });
     };
 
+    // Escapa texto digitado pelo usuário antes de inserir via innerHTML (evita XSS)
+    const escapeHtml = (value) => {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
+    const isThisMonth = (date) => {
+      const d = new Date(date);
+      const now = new Date();
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    };
+
     const saveData = () => {
       localStorage.setItem(DATA_KEYS.products, JSON.stringify(products));
       localStorage.setItem(DATA_KEYS.suppliers, JSON.stringify(suppliers));
@@ -80,6 +96,9 @@
       const totalQty = products.reduce((sum, p) => sum + (p.qty || 0), 0);
       const totalValue = products.reduce((sum, p) => sum + ((p.qty || 0) * (p.price || 0)), 0);
       const lowStock = products.filter(p => p.qty <= (p.minStock || 10)).length;
+      const categoriesCount = new Set(products.map(p => p.category || 'Sem categoria')).size;
+      const movementsThisMonth = movements.filter(m => isThisMonth(m.date)).length;
+      const avgValue = totalProducts > 0 ? totalValue / totalProducts : 0;
 
       const recentMovements = movements.slice(0, 5);
       const topProducts = [...products].sort((a, b) => (b.qty * b.price) - (a.qty * a.price)).slice(0, 5);
@@ -108,7 +127,7 @@
               <div class="stat-icon" style="background: rgba(23, 162, 184, 0.1); color: var(--info);">📦</div>
             </div>
             <div class="stat-value">${totalProducts}</div>
-            <span class="stat-change positive">↗ ${products.length > 0 ? '+5%' : '0%'} este mês</span>
+            <span class="stat-change">${categoriesCount} categoria${categoriesCount !== 1 ? 's' : ''}</span>
           </div>
 
           <div class="stat-card">
@@ -117,7 +136,7 @@
               <div class="stat-icon" style="background: rgba(40, 167, 69, 0.1); color: var(--success);">📊</div>
             </div>
             <div class="stat-value">${totalQty}</div>
-            <span class="stat-change positive">↗ +12% este mês</span>
+            <span class="stat-change">${movementsThisMonth} movimentaç${movementsThisMonth !== 1 ? 'ões' : 'ão'} este mês</span>
           </div>
 
           <div class="stat-card">
@@ -126,7 +145,7 @@
               <div class="stat-icon" style="background: rgba(155, 0, 0, 0.1); color: var(--primary);">💰</div>
             </div>
             <div class="stat-value">${formatMoney(totalValue)}</div>
-            <span class="stat-change positive">↗ +8% este mês</span>
+            <span class="stat-change">Média de ${formatMoney(avgValue)} por produto</span>
           </div>
 
           <div class="stat-card">
@@ -157,8 +176,8 @@
                   ${topProducts.map(p => `
                     <tr>
                       <td>
-                        <strong>${p.name}</strong><br>
-                        <small style="color: var(--text-muted);">${p.category || 'Sem categoria'}</small>
+                        <strong>${escapeHtml(p.name)}</strong><br>
+                        <small style="color: var(--text-muted);">${escapeHtml(p.category || 'Sem categoria')}</small>
                       </td>
                       <td>${p.qty}</td>
                       <td><strong>${formatMoney(p.qty * p.price)}</strong></td>
@@ -187,7 +206,7 @@
                   ${recentMovements.map(m => `
                     <tr>
                       <td><span class="badge ${m.type === 'entry' ? 'badge-success' : 'badge-danger'}">${m.type === 'entry' ? 'Entrada' : 'Saída'}</span></td>
-                      <td>${m.productName}</td>
+                      <td>${escapeHtml(m.productName)}</td>
                       <td>${m.qty}</td>
                       <td><small>${formatDate(m.date)}</small></td>
                     </tr>
@@ -199,8 +218,8 @@
         </div>
       `;
 
-      document.getElementById('addProductBtn')?.addEventListener('click', openProductModal);
-      document.getElementById('quickSearch')?.addEventListener('input', quickSearch);
+      document.getElementById('addProductBtn')?.addEventListener('click', () => openProductModal());
+      document.getElementById('quickSearch')?.addEventListener('keydown', quickSearch);
     }
 
     // Produtos
@@ -235,7 +254,7 @@
 
       renderProductsTable();
       
-      document.getElementById('addProductBtn').addEventListener('click', openProductModal);
+      document.getElementById('addProductBtn').addEventListener('click', () => openProductModal());
       document.getElementById('searchProducts').addEventListener('input', (e) => {
         renderProductsTable(e.target.value);
       });
@@ -299,11 +318,11 @@
               return `
                 <tr>
                   <td>
-                    <strong>${p.name}</strong><br>
-                    ${p.supplier ? `<small style="color: var(--text-muted);">Fornecedor: ${suppliers.find(s => s.id === p.supplier)?.name || 'N/A'}</small>` : ''}
+                    <strong>${escapeHtml(p.name)}</strong><br>
+                    ${p.supplier ? `<small style="color: var(--text-muted);">Fornecedor: ${escapeHtml(suppliers.find(s => s.id === p.supplier)?.name || 'N/A')}</small>` : ''}
                   </td>
-                  <td><span class="badge badge-info">${p.sku || '-'}</span></td>
-                  <td>${p.category || '-'}</td>
+                  <td><span class="badge badge-info">${escapeHtml(p.sku || '-')}</span></td>
+                  <td>${escapeHtml(p.category || '-')}</td>
                   <td><strong>${p.qty}</strong></td>
                   <td>${formatMoney(p.price)}</td>
                   <td><strong>${formatMoney(p.qty * p.price)}</strong></td>
@@ -350,7 +369,7 @@
 
       renderSuppliersTable();
       
-      document.getElementById('addSupplierBtn').addEventListener('click', openSupplierModal);
+      document.getElementById('addSupplierBtn').addEventListener('click', () => openSupplierModal());
       document.getElementById('searchSuppliers').addEventListener('input', (e) => {
         renderSuppliersTable(e.target.value);
       });
@@ -391,10 +410,10 @@
               const productsCount = products.filter(p => p.supplier === s.id).length;
               return `
                 <tr>
-                  <td><strong>${s.name}</strong></td>
-                  <td>${s.cnpj || '-'}</td>
-                  <td>${s.phone || '-'}</td>
-                  <td>${s.email || '-'}</td>
+                  <td><strong>${escapeHtml(s.name)}</strong></td>
+                  <td>${escapeHtml(s.cnpj || '-')}</td>
+                  <td>${escapeHtml(s.phone || '-')}</td>
+                  <td>${escapeHtml(s.email || '-')}</td>
                   <td><span class="badge badge-info">${productsCount} produto${productsCount !== 1 ? 's' : ''}</span></td>
                   <td>
                     <div class="action-btns">
@@ -469,9 +488,9 @@
               <tr>
                 <td>${formatDate(m.date)}</td>
                 <td><span class="badge ${m.type === 'entry' ? 'badge-success' : 'badge-danger'}">${m.type === 'entry' ? '↗ Entrada' : '↘ Saída'}</span></td>
-                <td><strong>${m.productName}</strong></td>
+                <td><strong>${escapeHtml(m.productName)}</strong></td>
                 <td><strong>${m.qty}</strong></td>
-                <td>${m.notes || '-'}</td>
+                <td>${escapeHtml(m.notes || '-')}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -524,7 +543,7 @@
               <span class="stat-title">Movimentações (mês)</span>
               <div class="stat-icon" style="background: rgba(40, 167, 69, 0.1); color: var(--success);">🔄</div>
             </div>
-            <div class="stat-value">${movements.length}</div>
+            <div class="stat-value">${movements.filter(m => isThisMonth(m.date)).length}</div>
           </div>
         </div>
 
@@ -544,10 +563,10 @@
               </thead>
               <tbody>
                 ${Object.entries(categoriesMap).sort((a, b) => b[1].value - a[1].value).map(([cat, data]) => {
-                  const percentage = ((data.value / totalValue) * 100).toFixed(1);
+                  const percentage = totalValue > 0 ? ((data.value / totalValue) * 100).toFixed(1) : '0.0';
                   return `
                     <tr>
-                      <td><strong>${cat}</strong></td>
+                      <td><strong>${escapeHtml(cat)}</strong></td>
                       <td>${data.count}</td>
                       <td><strong>${formatMoney(data.value)}</strong></td>
                       <td>
@@ -598,7 +617,7 @@
               <tbody>
                 ${lowStock.map(p => `
                   <tr>
-                    <td><strong>${p.name}</strong></td>
+                    <td><strong>${escapeHtml(p.name)}</strong></td>
                     <td><span class="badge badge-warning">${p.qty}</span></td>
                     <td>${p.minStock || 10}</td>
                     <td>
@@ -630,8 +649,8 @@
               <tbody>
                 ${outOfStock.map(p => `
                   <tr>
-                    <td><strong>${p.name}</strong></td>
-                    <td>${p.category || '-'}</td>
+                    <td><strong>${escapeHtml(p.name)}</strong></td>
+                    <td>${escapeHtml(p.category || '-')}</td>
                     <td>${p.lastUpdate ? formatDate(p.lastUpdate) : '-'}</td>
                     <td>
                       <button class="btn btn-primary" onclick="adjustStock('${p.id}', 'entry')" style="padding: 6px 12px; font-size: 12px;">
@@ -656,7 +675,7 @@
       // Preencher fornecedores
       const supplierSelect = form.supplier;
       supplierSelect.innerHTML = '<option value="">Selecione...</option>' + 
-        suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 
       if (productId) {
         const product = products.find(p => p.id === productId);
@@ -681,8 +700,10 @@
     }
 
     function closeProductModal() {
+      const form = document.getElementById('productForm');
       document.getElementById('productModal').classList.remove('open');
-      document.getElementById('productForm').reset();
+      form.reset();
+      delete form.dataset.editId;
     }
 
     document.getElementById('closeProductModal').addEventListener('click', closeProductModal);
@@ -743,8 +764,10 @@
     }
 
     function closeSupplierModal() {
+      const form = document.getElementById('supplierForm');
       document.getElementById('supplierModal').classList.remove('open');
-      document.getElementById('supplierForm').reset();
+      form.reset();
+      delete form.dataset.editId;
     }
 
     document.getElementById('closeSupplierModal').addEventListener('click', closeSupplierModal);
@@ -837,16 +860,14 @@
       renderProducts();
     };
 
+    // Busca rápida do dashboard: ao apertar Enter, abre a página de produtos já filtrada
     function quickSearch(e) {
-      const term = e.target.value.toLowerCase();
-      if (term.length < 2) return;
+      if (e.key !== 'Enter') return;
+      const term = e.target.value.trim();
 
-      const results = products.filter(p => 
-        p.name.toLowerCase().includes(term) ||
-        (p.sku || '').toLowerCase().includes(term)
-      ).slice(0, 5);
-
-      console.log('Resultados da busca:', results);
+      document.querySelector('.nav-item[data-page="products"]').click();
+      document.getElementById('searchProducts').value = term;
+      renderProductsTable(term);
     }
 
     // Inicializar
