@@ -2,11 +2,11 @@
 -- Não faz parte das migrations: rode manualmente em um banco vazio.
 -- CNPJs fictícios (formato válido, não pertencem a empresas reais).
 
--- Usuários de desenvolvimento. Senha dos dois: dismar123 (hash BCrypt abaixo).
+-- Usuários de desenvolvimento. Senha dos dois: estoque123 (hash BCrypt abaixo).
 -- Nunca use estes usuários em produção: lá o primeiro administrador vem de ADMIN_EMAIL/ADMIN_PASSWORD.
 INSERT INTO app_user (name, email, password_hash, role) VALUES
-    ('Administrador', 'admin@dismar.local',    '{bcrypt}$2a$10$g6Vx.bVHbhAGHWenyjgKCuaTe5pjU0na1cA3qQeDbbvlUiu3rVR7S', 'ADMIN'),
-    ('Operador',      'operador@dismar.local', '{bcrypt}$2a$10$g6Vx.bVHbhAGHWenyjgKCuaTe5pjU0na1cA3qQeDbbvlUiu3rVR7S', 'USER');
+    ('Administrador', 'admin@tana.local',    '{bcrypt}$2a$10$YLNVf1erNC4gBRgl7YI7/eb8zVNb44KBcA8OA2soiTQqktOlgbQbW', 'ADMIN'),
+    ('Operador',      'operador@tana.local', '{bcrypt}$2a$10$YLNVf1erNC4gBRgl7YI7/eb8zVNb44KBcA8OA2soiTQqktOlgbQbW', 'USER');
 
 INSERT INTO category (name) VALUES
     ('Ferragens'),

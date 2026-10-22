@@ -2,7 +2,7 @@
 # Os valores marcados com sync: false são pedidos pelo painel na criação e nunca ficam no repositório.
 services:
   - type: web
-    name: dismar-stock-api
+    name: tana-stock-api
     runtime: docker
     plan: free
     # Região mais próxima do Brasil entre as do Render; crie o banco do Supabase em East US (N. Virginia)

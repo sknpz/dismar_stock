@@ -1,10 +1,10 @@
-    // Cliente da API REST do Dismar Stock (backend/ em Java + Spring Boot)
+    // Cliente da API REST do Tana Stock (backend/ em Java + Spring Boot)
 
     // Endereço da API: a local durante o desenvolvimento e a publicada no Render quando o front está
-    // no GitHub Pages. Pode ser sobrescrito definindo window.DISMAR_API_URL antes de carregar este arquivo.
+    // no GitHub Pages. Pode ser sobrescrito definindo window.TANA_API_URL antes de carregar este arquivo.
     const LOCAL_HOSTS = ['localhost', '127.0.0.1', ''];
-    const API_BASE_URL = window.DISMAR_API_URL
-      || (LOCAL_HOSTS.includes(location.hostname) ? 'http://localhost:8080' : 'https://dismar-stock-api.onrender.com');
+    const API_BASE_URL = window.TANA_API_URL
+      || (LOCAL_HOSTS.includes(location.hostname) ? 'http://localhost:8080' : 'https://tana-stock-api.onrender.com');
 
     // Erro devolvido pela API no formato Problem Details (RFC 9457)
     class ApiError extends Error {
@@ -17,7 +17,7 @@
 
     // Sessão do usuário logado: token JWT, validade e dados do usuário, guardados no localStorage
     const session = (() => {
-      const SESSION_KEY = 'dismar_v2_session';
+      const SESSION_KEY = 'tana_session';
 
       const clear = () => localStorage.removeItem(SESSION_KEY);
 
