@@ -13,11 +13,9 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Pageable;
 
-import br.com.dismar.stock.TestcontainersConfiguration;
+import br.com.dismar.stock.IntegrationTest;
 import br.com.dismar.stock.product.ProductCreateRequest;
 import br.com.dismar.stock.product.ProductResponse;
 import br.com.dismar.stock.product.ProductService;
@@ -27,9 +25,7 @@ import br.com.dismar.stock.shared.exception.BusinessException;
  * Garante que o lock pessimista em {@code ProductRepository.findActiveByIdForUpdate} funciona:
  * saídas simultâneas não podem ler o mesmo saldo e deixar o estoque negativo ou inconsistente.
  */
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-class StockMovementConcurrencyTests {
+class StockMovementConcurrencyTests extends IntegrationTest {
 
     private static final int INITIAL_STOCK = 7;
     private static final int CONCURRENT_EXITS = 20;
