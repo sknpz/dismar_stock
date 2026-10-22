@@ -16,6 +16,7 @@
   <img src="https://img.shields.io/badge/Spring_Boot_4-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot 4">
   <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
+  <a href="https://github.com/sknpz/dismar_stock/actions/workflows/ci.yml"><img src="https://github.com/sknpz/dismar_stock/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 ## 📦 About the Project
@@ -129,7 +130,10 @@ The project has two parts:
 | Flyway       | Versioned database migrations |
 | Spring Security (OAuth2 Resource Server) | JWT authentication and authorization |
 | springdoc-openapi | Interactive API documentation (Swagger UI) |
+| JUnit 5 + AssertJ + MockMvc | Unit and integration tests |
 | Testcontainers | Disposable PostgreSQL for automated tests |
+| JaCoCo | Test coverage report and minimum coverage check |
+| GitHub Actions | Continuous integration on every push and pull request |
 
 ---
 
@@ -143,6 +147,7 @@ dismar_stock/
 ├── api.js                # HTTP client for the REST API
 ├── dismar_PNG.png        # Application icon
 ├── logo_dismar_PNG.png   # Project logo
+├── .github/workflows/    # CI (GitHub Actions)
 ├── backend/              # REST API (Java + Spring Boot)
 │   ├── compose.yaml      # Local PostgreSQL for development
 │   ├── pom.xml
@@ -161,7 +166,7 @@ dismar_stock/
 │       │   └── resources/db/
 │       │       ├── migration/ # Flyway migrations (database schema)
 │       │       └── seed/      # Sample data for development
-│       └── test/          # Integration tests (Testcontainers)
+│       └── test/          # Unit and integration tests (see Tests below)
 ├── LICENSE               # MIT License
 └── README.md             # Project documentation
 ```
@@ -221,7 +226,7 @@ Interactive documentation: **http://localhost:8080/swagger-ui.html**. Call `POST
 
 In production (without the sample data), set `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the first start, log in as that administrator, and create the other users from the **Usuários** page.
 
-Run the tests with `./mvnw test`. Docker must be running, because Testcontainers starts a temporary PostgreSQL.
+Run the tests with `./mvnw verify` (see [Tests](#-tests)).
 
 ### 4. Run the front-end
 
@@ -290,6 +295,34 @@ Every endpoint except `POST /api/auth/login` requires the header `Authorization:
   "errors": { "unitPrice": "O preço unitário não pode ser negativo." }
 }
 ```
+
+---
+
+## 🧪 Tests
+
+```bash
+cd backend
+./mvnw verify
+```
+
+Docker must be running: the integration tests start a temporary PostgreSQL with Testcontainers, so they run against the same database engine as production, including the Flyway migrations and the `CHECK` constraints.
+
+| Kind | What it covers |
+| --- | --- |
+| **Unit** (plain JUnit) | CNPJ validation (numeric, alphanumeric, punctuation, wrong check digits), stock status, the product balance rule and the first-admin bootstrap |
+| **Integration** (MockMvc + Testcontainers) | Every endpoint through the full HTTP stack, including Spring Security: validation errors, conflicts, soft delete, filters and pagination, reports, users and profiles, 401/403, CORS |
+| **Concurrency** | 20 simultaneous exits against a product with 7 units: exactly 7 succeed |
+
+All integration tests extend [`IntegrationTest`](backend/src/test/java/br/com/dismar/stock/IntegrationTest.java) and share one Spring context and one database container. Each test creates its own data with unique names instead of relying on an empty database.
+
+`./mvnw verify` also writes the coverage report to `backend/target/site/jacoco/index.html` and **fails if coverage drops below 85% of lines or 70% of branches**.
+
+### Continuous integration
+
+[GitHub Actions](.github/workflows/ci.yml) runs on every push to `main` and on every pull request:
+
+* **API:** `./mvnw verify` on Java 21 (tests + coverage check), with a coverage summary on the run page and the test and coverage reports available as artifacts.
+* **Front-end:** syntax check of `api.js` and `script.js`.
 
 ---
 
@@ -403,7 +436,7 @@ The project is evolving from a browser-only app into a full-stack application:
 * [x] **Phase 2:** REST API with Java + Spring Boot
 * [x] **Phase 3:** Front-end consuming the API instead of `localStorage`
 * [x] **Phase 4:** User authentication with JWT
-* [ ] **Phase 5:** Automated tests (JUnit) and CI with GitHub Actions
+* [x] **Phase 5:** Automated tests (JUnit) and CI with GitHub Actions
 * [ ] **Phase 6:** Docker and cloud deployment
 
 Ideas for later:
