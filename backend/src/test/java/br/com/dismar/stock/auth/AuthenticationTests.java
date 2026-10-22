@@ -13,37 +13,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.jayway.jsonpath.JsonPath;
 
-import br.com.dismar.stock.TestcontainersConfiguration;
+import br.com.dismar.stock.IntegrationTest;
 import br.com.dismar.stock.user.Role;
-import br.com.dismar.stock.user.UserCreateRequest;
 import br.com.dismar.stock.user.UserResponse;
-import br.com.dismar.stock.user.UserService;
 import br.com.dismar.stock.user.UserUpdateRequest;
 
 /** Fluxo completo pela camada HTTP: login, token, perfis e respostas 401/403 no formato Problem Details. */
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-@AutoConfigureMockMvc
-class AuthenticationTests {
-
-    private static final String PASSWORD = "senha-segura-123";
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private UserService userService;
+class AuthenticationTests extends IntegrationTest {
 
     @Test
     void requestWithoutTokenIsRejected() throws Exception {
@@ -206,25 +187,5 @@ class AuthenticationTests {
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(login(user.email(), "nova-senha-456")).andExpect(status().isOk());
-    }
-
-    private UserResponse createUser(Role role) {
-        String email = role.name().toLowerCase() + "-" + UUID.randomUUID() + "@dismar.test";
-        return userService.create(new UserCreateRequest("Usuário " + role, email, PASSWORD, role));
-    }
-
-    private String tokenFor(String email) throws Exception {
-        String response = mockMvc.perform(login(email, PASSWORD))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        return JsonPath.read(response, "$.accessToken");
-    }
-
-    private static MockHttpServletRequestBuilder login(String email, String password) {
-        return post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {"email": "%s", "password": "%s"}
-                        """.formatted(email, password));
     }
 }
