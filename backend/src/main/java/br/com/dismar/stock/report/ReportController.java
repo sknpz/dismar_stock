@@ -1,10 +1,14 @@
 package br.com.dismar.stock.report;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(name = "Relatórios")
@@ -22,5 +26,12 @@ public class ReportController {
     @GetMapping("/summary")
     public InventorySummaryResponse summary() {
         return reportService.summary();
+    }
+
+    @Operation(summary = "Produtos com maior valor em estoque (quantidade x preço unitário)")
+    @GetMapping("/top-products")
+    public List<TopProductResponse> topProducts(
+            @Parameter(description = "Quantidade de produtos (1 a 50)") @RequestParam(defaultValue = "5") int limit) {
+        return reportService.topProducts(limit);
     }
 }

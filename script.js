@@ -1,15 +1,8 @@
-    // Sistema de Dados
-    const DATA_KEYS = {
-      products: 'dismar_v2_products',
-      suppliers: 'dismar_v2_suppliers',
-      movements: 'dismar_v2_movements',
-      config: 'dismar_v2_config'
-    };
+    // Preferências de interface (tema e moeda). Os dados de estoque vêm da API (ver api.js).
+    const CONFIG_KEY = 'dismar_v2_config';
+    let config = JSON.parse(localStorage.getItem(CONFIG_KEY)) || { theme: 'light', currency: 'BRL' };
 
-    let products = JSON.parse(localStorage.getItem(DATA_KEYS.products)) || [];
-    let suppliers = JSON.parse(localStorage.getItem(DATA_KEYS.suppliers)) || [];
-    let movements = JSON.parse(localStorage.getItem(DATA_KEYS.movements)) || [];
-    let config = JSON.parse(localStorage.getItem(DATA_KEYS.config)) || { theme: 'light', currency: 'BRL' };
+    const saveConfig = () => localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
 
     // Aplicar tema
     if (config.theme === 'dark') {
@@ -17,9 +10,16 @@
       document.getElementById('themeIcon').textContent = '☀️';
     }
 
+    const PAGE_SIZE = 20;
+    const DEFAULT_MIN_STOCK = 10;
+
+    const STOCK_STATUS = {
+      OK: { badge: 'success', label: 'OK' },
+      LOW_STOCK: { badge: 'warning', label: 'Baixo' },
+      OUT_OF_STOCK: { badge: 'danger', label: 'Sem Estoque' }
+    };
+
     // Funções Auxiliares
-    const generateId = () => Math.random().toString(36).substr(2, 9);
-    
     const formatMoney = (value) => {
       return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
@@ -37,6 +37,12 @@
       });
     };
 
+    // A API guarda o CNPJ sem pontuação: "11222333000181" → "11.222.333/0001-81" (vale também para o alfanumérico)
+    const formatCnpj = (cnpj) => {
+      if (!cnpj || cnpj.length !== 14) return cnpj;
+      return `${cnpj.slice(0, 2)}.${cnpj.slice(2, 5)}.${cnpj.slice(5, 8)}/${cnpj.slice(8, 12)}-${cnpj.slice(12)}`;
+    };
+
     // Escapa texto digitado pelo usuário antes de inserir via innerHTML (evita XSS)
     const escapeHtml = (value) => {
       return String(value ?? '')
@@ -47,38 +53,126 @@
         .replace(/'/g, '&#39;');
     };
 
-    const isThisMonth = (date) => {
-      const d = new Date(date);
-      const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    // Espera o usuário parar de digitar antes de consultar a API
+    const debounce = (fn, delay = 300) => {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+      };
     };
 
-    const saveData = () => {
-      localStorage.setItem(DATA_KEYS.products, JSON.stringify(products));
-      localStorage.setItem(DATA_KEYS.suppliers, JSON.stringify(suppliers));
-      localStorage.setItem(DATA_KEYS.movements, JSON.stringify(movements));
-      localStorage.setItem(DATA_KEYS.config, JSON.stringify(config));
-    };
+    const emptyState = (icon, title, text = '') => `
+      <div class="empty-state">
+        <div class="empty-icon">${icon}</div>
+        <div class="empty-title">${escapeHtml(title)}</div>
+        ${text ? `<p>${escapeHtml(text)}</p>` : ''}
+      </div>
+    `;
 
-    // Sistema de Navegação
+    const movementBadge = (type, arrow = '') => type === 'ENTRY'
+      ? `<span class="badge badge-success">${arrow ? '↗ ' : ''}Entrada</span>`
+      : `<span class="badge badge-danger">${arrow ? '↘ ' : ''}Saída</span>`;
+
+    // Paginação das listagens da API, que respondem { content: [...], page: { number, totalPages, totalElements } }
+    function paginationHtml(pageInfo, label) {
+      if (pageInfo.totalPages <= 1) return '';
+      return `
+        <div class="pagination">
+          <button class="btn btn-secondary" data-page-step="-1" ${pageInfo.number === 0 ? 'disabled' : ''}>← Anterior</button>
+          <span>Página ${pageInfo.number + 1} de ${pageInfo.totalPages} · ${pageInfo.totalElements} ${label}</span>
+          <button class="btn btn-secondary" data-page-step="1" ${pageInfo.number + 1 >= pageInfo.totalPages ? 'disabled' : ''}>Próxima →</button>
+        </div>
+      `;
+    }
+
+    function bindPagination(container, onStep) {
+      container.querySelectorAll('[data-page-step]').forEach(btn => {
+        btn.addEventListener('click', () => onStep(Number(btn.dataset.pageStep)));
+      });
+    }
+
+    // Recarrega só a tabela (busca, filtro ou paginação), descartando respostas que chegarem fora de ordem
+    const tableRequests = {};
+    async function refreshTable(containerId, load, render) {
+      const requestId = (tableRequests[containerId] || 0) + 1;
+      tableRequests[containerId] = requestId;
+      const isLatest = () => tableRequests[containerId] === requestId && document.getElementById(containerId);
+
+      try {
+        const data = await load();
+        if (isLatest()) render(data);
+      } catch (error) {
+        if (isLatest()) {
+          document.getElementById(containerId).innerHTML = emptyState('🔌', 'Não foi possível carregar os dados', error.message);
+        }
+      }
+    }
+
+    // Estado dos filtros de cada página (zerado ao navegar pelo menu)
+    let productFilters;
+    let supplierSearch;
+    let movementFilters;
+
+    function resetFilters() {
+      productFilters = { search: '', status: '', page: 0 };
+      supplierSearch = '';
+      movementFilters = { type: '', page: 0 };
+    }
+    resetFilters();
+
+    // Sistema de Navegação: cada página carrega seus dados da API e depois desenha a tela
     const pages = {
-      dashboard: () => renderDashboard(),
-      products: () => renderProducts(),
-      suppliers: () => renderSuppliers(),
-      movements: () => renderMovements(),
-      reports: () => renderReports(),
-      alerts: () => renderAlerts()
+      dashboard: { load: loadDashboard, render: renderDashboard },
+      products: { load: loadProducts, render: renderProducts },
+      suppliers: { load: loadSuppliers, render: renderSuppliers },
+      movements: { load: loadMovements, render: renderMovements },
+      reports: { load: loadReports, render: renderReports },
+      alerts: { load: loadAlerts, render: renderAlerts }
     };
+
+    let currentPage = 'dashboard';
+    let navigationId = 0;
+
+    async function showPage(page, { keepContent = false } = {}) {
+      currentPage = page;
+      const id = ++navigationId;
+      const main = document.getElementById('mainContent');
+      if (!keepContent) main.innerHTML = emptyState('⏳', 'Carregando...');
+
+      try {
+        const data = await pages[page].load();
+        // Se o usuário trocou de página enquanto a API respondia, esta resposta não é mais necessária
+        if (id === navigationId) pages[page].render(data);
+      } catch (error) {
+        if (id === navigationId) renderPageError(error);
+      }
+    }
+
+    function navigateTo(page) {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.page === page));
+      showPage(page);
+    }
+
+    // Depois de salvar, excluir ou movimentar: recarrega a página atual sem piscar o "Carregando..."
+    const reloadCurrentPage = () => showPage(currentPage, { keepContent: true });
+
+    function renderPageError(error) {
+      console.error(error);
+      document.getElementById('mainContent').innerHTML = `
+        ${emptyState('🔌', 'Não foi possível carregar os dados', error.message)}
+        <div style="text-align: center;">
+          <button class="btn btn-primary" id="retryBtn">Tentar novamente</button>
+        </div>
+      `;
+      document.getElementById('retryBtn').addEventListener('click', () => showPage(currentPage));
+    }
 
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.preventDefault();
-        const page = e.currentTarget.dataset.page;
-        
-        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        
-        if (pages[page]) pages[page]();
+        resetFilters();
+        navigateTo(e.currentTarget.dataset.page);
       });
     });
 
@@ -87,21 +181,22 @@
       document.body.classList.toggle('dark');
       config.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
       document.getElementById('themeIcon').textContent = config.theme === 'dark' ? '☀️' : '🌙';
-      saveData();
+      saveConfig();
     });
 
     // Dashboard
-    function renderDashboard() {
-      const totalProducts = products.length;
-      const totalQty = products.reduce((sum, p) => sum + (p.qty || 0), 0);
-      const totalValue = products.reduce((sum, p) => sum + ((p.qty || 0) * (p.price || 0)), 0);
-      const lowStock = products.filter(p => p.qty <= (p.minStock || 10)).length;
-      const categoriesCount = new Set(products.map(p => p.category || 'Sem categoria')).size;
-      const movementsThisMonth = movements.filter(m => isThisMonth(m.date)).length;
-      const avgValue = totalProducts > 0 ? totalValue / totalProducts : 0;
+    async function loadDashboard() {
+      const [summary, topProducts, recentMovements] = await Promise.all([
+        api.reports.summary(),
+        api.reports.topProducts(5),
+        api.movements.list({ size: 5 })
+      ]);
+      return { summary, topProducts, recentMovements: recentMovements.content };
+    }
 
-      const recentMovements = movements.slice(0, 5);
-      const topProducts = [...products].sort((a, b) => (b.qty * b.price) - (a.qty * a.price)).slice(0, 5);
+    function renderDashboard({ summary, topProducts, recentMovements }) {
+      // Mesmo critério do card desde a fase 0: estoque baixo inclui os produtos zerados
+      const lowStock = summary.lowStockProducts + summary.outOfStockProducts;
 
       document.getElementById('mainContent').innerHTML = `
         <div class="top-bar">
@@ -126,8 +221,8 @@
               <span class="stat-title">Total de Produtos</span>
               <div class="stat-icon" style="background: rgba(23, 162, 184, 0.1); color: var(--info);">📦</div>
             </div>
-            <div class="stat-value">${totalProducts}</div>
-            <span class="stat-change">${categoriesCount} categoria${categoriesCount !== 1 ? 's' : ''}</span>
+            <div class="stat-value">${summary.totalProducts}</div>
+            <span class="stat-change">${summary.categories} categoria${summary.categories !== 1 ? 's' : ''}</span>
           </div>
 
           <div class="stat-card">
@@ -135,8 +230,8 @@
               <span class="stat-title">Quantidade Total</span>
               <div class="stat-icon" style="background: rgba(40, 167, 69, 0.1); color: var(--success);">📊</div>
             </div>
-            <div class="stat-value">${totalQty}</div>
-            <span class="stat-change">${movementsThisMonth} movimentaç${movementsThisMonth !== 1 ? 'ões' : 'ão'} este mês</span>
+            <div class="stat-value">${summary.totalQuantity}</div>
+            <span class="stat-change">${summary.movementsThisMonth} movimentaç${summary.movementsThisMonth !== 1 ? 'ões' : 'ão'} este mês</span>
           </div>
 
           <div class="stat-card">
@@ -144,8 +239,8 @@
               <span class="stat-title">Valor Total</span>
               <div class="stat-icon" style="background: rgba(155, 0, 0, 0.1); color: var(--primary);">💰</div>
             </div>
-            <div class="stat-value">${formatMoney(totalValue)}</div>
-            <span class="stat-change">Média de ${formatMoney(avgValue)} por produto</span>
+            <div class="stat-value">${formatMoney(summary.totalValue)}</div>
+            <span class="stat-change">Média de ${formatMoney(summary.averageValuePerProduct)} por produto</span>
           </div>
 
           <div class="stat-card">
@@ -179,13 +274,13 @@
                         <strong>${escapeHtml(p.name)}</strong><br>
                         <small style="color: var(--text-muted);">${escapeHtml(p.category || 'Sem categoria')}</small>
                       </td>
-                      <td>${p.qty}</td>
-                      <td><strong>${formatMoney(p.qty * p.price)}</strong></td>
+                      <td>${p.quantity}</td>
+                      <td><strong>${formatMoney(p.totalValue)}</strong></td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
-            ` : '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto cadastrado</div></div>'}
+            ` : emptyState('📦', 'Nenhum produto cadastrado')}
           </div>
 
           <div class="card">
@@ -205,25 +300,30 @@
                 <tbody>
                   ${recentMovements.map(m => `
                     <tr>
-                      <td><span class="badge ${m.type === 'entry' ? 'badge-success' : 'badge-danger'}">${m.type === 'entry' ? 'Entrada' : 'Saída'}</span></td>
-                      <td>${escapeHtml(m.productName)}</td>
-                      <td>${m.qty}</td>
-                      <td><small>${formatDate(m.date)}</small></td>
+                      <td>${movementBadge(m.type)}</td>
+                      <td>${escapeHtml(m.product.name)}</td>
+                      <td>${m.quantity}</td>
+                      <td><small>${formatDate(m.createdAt)}</small></td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
-            ` : '<div class="empty-state"><div class="empty-icon">🔄</div><div class="empty-title">Nenhuma movimentação registrada</div></div>'}
+            ` : emptyState('🔄', 'Nenhuma movimentação registrada')}
           </div>
         </div>
       `;
 
-      document.getElementById('addProductBtn')?.addEventListener('click', () => openProductModal());
-      document.getElementById('quickSearch')?.addEventListener('keydown', quickSearch);
+      document.getElementById('addProductBtn').addEventListener('click', () => openProductModal());
+      document.getElementById('quickSearch').addEventListener('keydown', quickSearch);
     }
 
     // Produtos
-    function renderProducts() {
+    function loadProducts() {
+      return api.products.list({ ...productFilters, size: PAGE_SIZE });
+    }
+    const refreshProductsTable = () => refreshTable('productsTable', loadProducts, renderProductsTable);
+
+    function renderProducts(productsPage) {
       document.getElementById('mainContent').innerHTML = `
         <div class="top-bar">
           <div class="page-title">
@@ -233,7 +333,7 @@
           <div class="top-actions">
             <div class="search-box">
               <span class="search-icon">🔍</span>
-              <input type="text" placeholder="Buscar produtos..." id="searchProducts">
+              <input type="text" placeholder="Buscar por nome ou SKU..." id="searchProducts" value="${escapeHtml(productFilters.search)}">
             </div>
             <button class="btn btn-primary" id="addProductBtn">
               <span>➕</span> Novo Produto
@@ -242,9 +342,9 @@
         </div>
 
         <div class="filters">
-          <button class="filter-btn active" data-filter="all">Todos</button>
-          <button class="filter-btn" data-filter="lowStock">Estoque Baixo</button>
-          <button class="filter-btn" data-filter="outOfStock">Sem Estoque</button>
+          <button class="filter-btn ${productFilters.status === '' ? 'active' : ''}" data-filter="">Todos</button>
+          <button class="filter-btn ${productFilters.status === 'LOW_STOCK' ? 'active' : ''}" data-filter="LOW_STOCK">Estoque Baixo</button>
+          <button class="filter-btn ${productFilters.status === 'OUT_OF_STOCK' ? 'active' : ''}" data-filter="OUT_OF_STOCK">Sem Estoque</button>
         </div>
 
         <div class="card">
@@ -252,47 +352,41 @@
         </div>
       `;
 
-      renderProductsTable();
-      
+      renderProductsTable(productsPage);
+
       document.getElementById('addProductBtn').addEventListener('click', () => openProductModal());
-      document.getElementById('searchProducts').addEventListener('input', (e) => {
-        renderProductsTable(e.target.value);
-      });
+      document.getElementById('searchProducts').addEventListener('input', debounce((e) => {
+        productFilters.search = e.target.value.trim();
+        productFilters.page = 0;
+        refreshProductsTable();
+      }));
 
       document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
           e.target.classList.add('active');
-          
-          const filter = e.target.dataset.filter;
-          let filtered = products;
-          
-          if (filter === 'lowStock') {
-            filtered = products.filter(p => p.qty > 0 && p.qty <= (p.minStock || 10));
-          } else if (filter === 'outOfStock') {
-            filtered = products.filter(p => p.qty === 0);
-          }
-          
-          renderProductsTable('', filtered);
+
+          productFilters.status = e.target.dataset.filter;
+          productFilters.page = 0;
+          refreshProductsTable();
         });
       });
     }
 
-    function renderProductsTable(search = '', filtered = products) {
+    function renderProductsTable(productsPage) {
       const tableEl = document.getElementById('productsTable');
-      
-      let list = filtered;
-      if (search) {
-        const term = search.toLowerCase();
-        list = filtered.filter(p => 
-          p.name.toLowerCase().includes(term) ||
-          (p.sku || '').toLowerCase().includes(term) ||
-          (p.category || '').toLowerCase().includes(term)
-        );
+      const list = productsPage.content;
+      const pageInfo = productsPage.page;
+
+      // A última página pode ficar vazia depois de uma exclusão: volta para a anterior
+      if (list.length === 0 && pageInfo.number > 0) {
+        productFilters.page = Math.max(0, pageInfo.totalPages - 1);
+        refreshProductsTable();
+        return;
       }
 
       if (list.length === 0) {
-        tableEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto encontrado</div><p>Adicione um novo produto para começar</p></div>';
+        tableEl.innerHTML = emptyState('📦', 'Nenhum produto encontrado', 'Adicione um novo produto para começar');
         return;
       }
 
@@ -312,27 +406,26 @@
           </thead>
           <tbody>
             ${list.map(p => {
-              const stockStatus = p.qty === 0 ? 'danger' : p.qty <= (p.minStock || 10) ? 'warning' : 'success';
-              const stockLabel = p.qty === 0 ? 'Sem Estoque' : p.qty <= (p.minStock || 10) ? 'Baixo' : 'OK';
-              
+              const status = STOCK_STATUS[p.stockStatus];
+
               return `
                 <tr>
                   <td>
                     <strong>${escapeHtml(p.name)}</strong><br>
-                    ${p.supplier ? `<small style="color: var(--text-muted);">Fornecedor: ${escapeHtml(suppliers.find(s => s.id === p.supplier)?.name || 'N/A')}</small>` : ''}
+                    ${p.supplier ? `<small style="color: var(--text-muted);">Fornecedor: ${escapeHtml(p.supplier.name)}</small>` : ''}
                   </td>
                   <td><span class="badge badge-info">${escapeHtml(p.sku || '-')}</span></td>
-                  <td>${escapeHtml(p.category || '-')}</td>
-                  <td><strong>${p.qty}</strong></td>
-                  <td>${formatMoney(p.price)}</td>
-                  <td><strong>${formatMoney(p.qty * p.price)}</strong></td>
-                  <td><span class="badge badge-${stockStatus}">${stockLabel}</span></td>
+                  <td>${escapeHtml(p.category?.name || '-')}</td>
+                  <td><strong>${p.quantity}</strong></td>
+                  <td>${formatMoney(p.unitPrice)}</td>
+                  <td><strong>${formatMoney(p.totalValue)}</strong></td>
+                  <td><span class="badge badge-${status.badge}">${status.label}</span></td>
                   <td>
                     <div class="action-btns">
-                      <button class="btn-icon" onclick="adjustStock('${p.id}', 'entry')" title="Entrada">➕</button>
-                      <button class="btn-icon" onclick="adjustStock('${p.id}', 'exit')" title="Saída">➖</button>
-                      <button class="btn-icon" onclick="editProduct('${p.id}')" title="Editar">✏️</button>
-                      <button class="btn-icon" onclick="deleteProduct('${p.id}')" title="Excluir">🗑️</button>
+                      <button class="btn-icon" onclick="adjustStock(${p.id}, 'entry')" title="Entrada">➕</button>
+                      <button class="btn-icon" onclick="adjustStock(${p.id}, 'exit')" title="Saída">➖</button>
+                      <button class="btn-icon" onclick="editProduct(${p.id})" title="Editar">✏️</button>
+                      <button class="btn-icon" onclick="deleteProduct(${p.id})" title="Excluir">🗑️</button>
                     </div>
                   </td>
                 </tr>
@@ -340,11 +433,21 @@
             }).join('')}
           </tbody>
         </table>
+        ${paginationHtml(pageInfo, 'produtos')}
       `;
+
+      bindPagination(tableEl, (step) => {
+        productFilters.page += step;
+        refreshProductsTable();
+      });
     }
 
     // Fornecedores
-    function renderSuppliers() {
+    function loadSuppliers() {
+      return api.suppliers.list(supplierSearch);
+    }
+
+    function renderSuppliers(suppliers) {
       document.getElementById('mainContent').innerHTML = `
         <div class="top-bar">
           <div class="page-title">
@@ -354,7 +457,7 @@
           <div class="top-actions">
             <div class="search-box">
               <span class="search-icon">🔍</span>
-              <input type="text" placeholder="Buscar fornecedores..." id="searchSuppliers">
+              <input type="text" placeholder="Buscar fornecedores..." id="searchSuppliers" value="${escapeHtml(supplierSearch)}">
             </div>
             <button class="btn btn-primary" id="addSupplierBtn">
               <span>➕</span> Novo Fornecedor
@@ -367,29 +470,20 @@
         </div>
       `;
 
-      renderSuppliersTable();
-      
+      renderSuppliersTable(suppliers);
+
       document.getElementById('addSupplierBtn').addEventListener('click', () => openSupplierModal());
-      document.getElementById('searchSuppliers').addEventListener('input', (e) => {
-        renderSuppliersTable(e.target.value);
-      });
+      document.getElementById('searchSuppliers').addEventListener('input', debounce((e) => {
+        supplierSearch = e.target.value.trim();
+        refreshTable('suppliersTable', loadSuppliers, renderSuppliersTable);
+      }));
     }
 
-    function renderSuppliersTable(search = '') {
+    function renderSuppliersTable(suppliers) {
       const tableEl = document.getElementById('suppliersTable');
-      
-      let list = suppliers;
-      if (search) {
-        const term = search.toLowerCase();
-        list = suppliers.filter(s => 
-          s.name.toLowerCase().includes(term) ||
-          (s.cnpj || '').toLowerCase().includes(term) ||
-          (s.email || '').toLowerCase().includes(term)
-        );
-      }
 
-      if (list.length === 0) {
-        tableEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🏢</div><div class="empty-title">Nenhum fornecedor encontrado</div><p>Adicione um novo fornecedor para começar</p></div>';
+      if (suppliers.length === 0) {
+        tableEl.innerHTML = emptyState('🏢', 'Nenhum fornecedor encontrado', 'Adicione um novo fornecedor para começar');
         return;
       }
 
@@ -406,31 +500,33 @@
             </tr>
           </thead>
           <tbody>
-            ${list.map(s => {
-              const productsCount = products.filter(p => p.supplier === s.id).length;
-              return `
-                <tr>
-                  <td><strong>${escapeHtml(s.name)}</strong></td>
-                  <td>${escapeHtml(s.cnpj || '-')}</td>
-                  <td>${escapeHtml(s.phone || '-')}</td>
-                  <td>${escapeHtml(s.email || '-')}</td>
-                  <td><span class="badge badge-info">${productsCount} produto${productsCount !== 1 ? 's' : ''}</span></td>
-                  <td>
-                    <div class="action-btns">
-                      <button class="btn-icon" onclick="editSupplier('${s.id}')" title="Editar">✏️</button>
-                      <button class="btn-icon" onclick="deleteSupplier('${s.id}')" title="Excluir">🗑️</button>
-                    </div>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
+            ${suppliers.map(s => `
+              <tr>
+                <td><strong>${escapeHtml(s.name)}</strong></td>
+                <td>${escapeHtml(formatCnpj(s.cnpj) || '-')}</td>
+                <td>${escapeHtml(s.phone || '-')}</td>
+                <td>${escapeHtml(s.email || '-')}</td>
+                <td><span class="badge badge-info">${s.activeProducts} produto${s.activeProducts !== 1 ? 's' : ''}</span></td>
+                <td>
+                  <div class="action-btns">
+                    <button class="btn-icon" onclick="editSupplier(${s.id})" title="Editar">✏️</button>
+                    <button class="btn-icon" onclick="deleteSupplier(${s.id})" title="Excluir">🗑️</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
           </tbody>
         </table>
       `;
     }
 
     // Movimentações
-    function renderMovements() {
+    function loadMovements() {
+      return api.movements.list({ ...movementFilters, size: PAGE_SIZE });
+    }
+    const refreshMovementsTable = () => refreshTable('movementsTable', loadMovements, renderMovementsTable);
+
+    function renderMovements(movementsPage) {
       document.getElementById('mainContent').innerHTML = `
         <div class="top-bar">
           <div class="page-title">
@@ -440,9 +536,9 @@
         </div>
 
         <div class="filters">
-          <button class="filter-btn active" data-filter="all">Todas</button>
-          <button class="filter-btn" data-filter="entry">Entradas</button>
-          <button class="filter-btn" data-filter="exit">Saídas</button>
+          <button class="filter-btn ${movementFilters.type === '' ? 'active' : ''}" data-filter="">Todas</button>
+          <button class="filter-btn ${movementFilters.type === 'ENTRY' ? 'active' : ''}" data-filter="ENTRY">Entradas</button>
+          <button class="filter-btn ${movementFilters.type === 'EXIT' ? 'active' : ''}" data-filter="EXIT">Saídas</button>
         </div>
 
         <div class="card">
@@ -450,25 +546,26 @@
         </div>
       `;
 
-      renderMovementsTable();
+      renderMovementsTable(movementsPage);
 
       document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
           e.target.classList.add('active');
-          
-          const filter = e.target.dataset.filter;
-          const filtered = filter === 'all' ? movements : movements.filter(m => m.type === filter);
-          renderMovementsTable(filtered);
+
+          movementFilters.type = e.target.dataset.filter;
+          movementFilters.page = 0;
+          refreshMovementsTable();
         });
       });
     }
 
-    function renderMovementsTable(list = movements) {
+    function renderMovementsTable(movementsPage) {
       const tableEl = document.getElementById('movementsTable');
+      const list = movementsPage.content;
 
       if (list.length === 0) {
-        tableEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🔄</div><div class="empty-title">Nenhuma movimentação registrada</div></div>';
+        tableEl.innerHTML = emptyState('🔄', 'Nenhuma movimentação registrada');
         return;
       }
 
@@ -480,38 +577,39 @@
               <th>Tipo</th>
               <th>Produto</th>
               <th>Quantidade</th>
+              <th>Saldo</th>
               <th>Observações</th>
             </tr>
           </thead>
           <tbody>
             ${list.map(m => `
               <tr>
-                <td>${formatDate(m.date)}</td>
-                <td><span class="badge ${m.type === 'entry' ? 'badge-success' : 'badge-danger'}">${m.type === 'entry' ? '↗ Entrada' : '↘ Saída'}</span></td>
-                <td><strong>${escapeHtml(m.productName)}</strong></td>
-                <td><strong>${m.qty}</strong></td>
+                <td>${formatDate(m.createdAt)}</td>
+                <td>${movementBadge(m.type, true)}</td>
+                <td><strong>${escapeHtml(m.product.name)}</strong></td>
+                <td><strong>${m.quantity}</strong></td>
+                <td>${m.previousQuantity} → ${m.newQuantity}</td>
                 <td>${escapeHtml(m.notes || '-')}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
+        ${paginationHtml(movementsPage.page, 'movimentações')}
       `;
+
+      bindPagination(tableEl, (step) => {
+        movementFilters.page += step;
+        refreshMovementsTable();
+      });
     }
 
     // Relatórios
-    function renderReports() {
-      const totalValue = products.reduce((sum, p) => sum + (p.qty * p.price), 0);
-      const avgValue = products.length > 0 ? totalValue / products.length : 0;
-      
-      const categoriesMap = {};
-      products.forEach(p => {
-        const cat = p.category || 'Sem categoria';
-        if (!categoriesMap[cat]) {
-          categoriesMap[cat] = { count: 0, value: 0 };
-        }
-        categoriesMap[cat].count += p.qty;
-        categoriesMap[cat].value += p.qty * p.price;
-      });
+    function loadReports() {
+      return api.reports.summary();
+    }
+
+    function renderReports(summary) {
+      const byCategory = summary.valueByCategory;
 
       document.getElementById('mainContent').innerHTML = `
         <div class="top-bar">
@@ -527,7 +625,7 @@
               <span class="stat-title">Valor Médio por Produto</span>
               <div class="stat-icon" style="background: rgba(155, 0, 0, 0.1); color: var(--primary);">💵</div>
             </div>
-            <div class="stat-value">${formatMoney(avgValue)}</div>
+            <div class="stat-value">${formatMoney(summary.averageValuePerProduct)}</div>
           </div>
 
           <div class="stat-card">
@@ -535,7 +633,7 @@
               <span class="stat-title">Categorias Cadastradas</span>
               <div class="stat-icon" style="background: rgba(23, 162, 184, 0.1); color: var(--info);">📂</div>
             </div>
-            <div class="stat-value">${Object.keys(categoriesMap).length}</div>
+            <div class="stat-value">${summary.categories}</div>
           </div>
 
           <div class="stat-card">
@@ -543,7 +641,7 @@
               <span class="stat-title">Movimentações (mês)</span>
               <div class="stat-icon" style="background: rgba(40, 167, 69, 0.1); color: var(--success);">🔄</div>
             </div>
-            <div class="stat-value">${movements.filter(m => isThisMonth(m.date)).length}</div>
+            <div class="stat-value">${summary.movementsThisMonth}</div>
           </div>
         </div>
 
@@ -551,7 +649,7 @@
           <div class="card-header">
             <h3 class="card-title">Valor por Categoria</h3>
           </div>
-          ${Object.keys(categoriesMap).length > 0 ? `
+          ${byCategory.length > 0 ? `
             <table>
               <thead>
                 <tr>
@@ -562,13 +660,13 @@
                 </tr>
               </thead>
               <tbody>
-                ${Object.entries(categoriesMap).sort((a, b) => b[1].value - a[1].value).map(([cat, data]) => {
-                  const percentage = totalValue > 0 ? ((data.value / totalValue) * 100).toFixed(1) : '0.0';
+                ${byCategory.map(c => {
+                  const percentage = Number(c.percentage).toFixed(1);
                   return `
                     <tr>
-                      <td><strong>${escapeHtml(cat)}</strong></td>
-                      <td>${data.count}</td>
-                      <td><strong>${formatMoney(data.value)}</strong></td>
+                      <td><strong>${escapeHtml(c.category)}</strong></td>
+                      <td>${c.quantity}</td>
+                      <td><strong>${formatMoney(c.value)}</strong></td>
                       <td>
                         <div style="display: flex; align-items: center; gap: 8px;">
                           <div style="flex: 1; height: 8px; background: var(--bg-light); border-radius: 4px; overflow: hidden;">
@@ -582,16 +680,29 @@
                 }).join('')}
               </tbody>
             </table>
-          ` : '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Sem dados para exibir</div></div>'}
+          ` : emptyState('📊', 'Sem dados para exibir')}
         </div>
       `;
     }
 
     // Alertas
-    function renderAlerts() {
-      const lowStock = products.filter(p => p.qty > 0 && p.qty <= (p.minStock || 10));
-      const outOfStock = products.filter(p => p.qty === 0);
+    const ALERTS_LIMIT = 100;
 
+    async function loadAlerts() {
+      const [lowStock, outOfStock] = await Promise.all([
+        api.products.list({ status: 'LOW_STOCK', size: ALERTS_LIMIT, sort: 'quantity' }),
+        api.products.list({ status: 'OUT_OF_STOCK', size: ALERTS_LIMIT })
+      ]);
+      return { lowStock, outOfStock };
+    }
+
+    // Quando há mais produtos do que o limite carregado, avisa em vez de esconder o restante
+    const alertsCount = (productsPage) => {
+      const total = productsPage.page.totalElements;
+      return total > productsPage.content.length ? `${productsPage.content.length} de ${total}` : total;
+    };
+
+    function renderAlerts({ lowStock, outOfStock }) {
       document.getElementById('mainContent').innerHTML = `
         <div class="top-bar">
           <div class="page-title">
@@ -602,9 +713,9 @@
 
         <div class="card">
           <div class="card-header">
-            <h3 class="card-title">⚠️ Estoque Baixo (${lowStock.length})</h3>
+            <h3 class="card-title">⚠️ Estoque Baixo (${alertsCount(lowStock)})</h3>
           </div>
-          ${lowStock.length > 0 ? `
+          ${lowStock.content.length > 0 ? `
             <table>
               <thead>
                 <tr>
@@ -615,13 +726,13 @@
                 </tr>
               </thead>
               <tbody>
-                ${lowStock.map(p => `
+                ${lowStock.content.map(p => `
                   <tr>
                     <td><strong>${escapeHtml(p.name)}</strong></td>
-                    <td><span class="badge badge-warning">${p.qty}</span></td>
-                    <td>${p.minStock || 10}</td>
+                    <td><span class="badge badge-warning">${p.quantity}</span></td>
+                    <td>${p.minStock}</td>
                     <td>
-                      <button class="btn btn-primary" onclick="adjustStock('${p.id}', 'entry')" style="padding: 6px 12px; font-size: 12px;">
+                      <button class="btn btn-primary" onclick="adjustStock(${p.id}, 'entry')" style="padding: 6px 12px; font-size: 12px;">
                         Adicionar Estoque
                       </button>
                     </td>
@@ -629,14 +740,14 @@
                 `).join('')}
               </tbody>
             </table>
-          ` : '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Nenhum produto com estoque baixo</div></div>'}
+          ` : emptyState('✅', 'Nenhum produto com estoque baixo')}
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3 class="card-title">🚫 Sem Estoque (${outOfStock.length})</h3>
+            <h3 class="card-title">🚫 Sem Estoque (${alertsCount(outOfStock)})</h3>
           </div>
-          ${outOfStock.length > 0 ? `
+          ${outOfStock.content.length > 0 ? `
             <table>
               <thead>
                 <tr>
@@ -647,13 +758,13 @@
                 </tr>
               </thead>
               <tbody>
-                ${outOfStock.map(p => `
+                ${outOfStock.content.map(p => `
                   <tr>
                     <td><strong>${escapeHtml(p.name)}</strong></td>
-                    <td>${escapeHtml(p.category || '-')}</td>
-                    <td>${p.lastUpdate ? formatDate(p.lastUpdate) : '-'}</td>
+                    <td>${escapeHtml(p.category?.name || '-')}</td>
+                    <td>${formatDate(p.updatedAt)}</td>
                     <td>
-                      <button class="btn btn-primary" onclick="adjustStock('${p.id}', 'entry')" style="padding: 6px 12px; font-size: 12px;">
+                      <button class="btn btn-primary" onclick="adjustStock(${p.id}, 'entry')" style="padding: 6px 12px; font-size: 12px;">
                         Repor Estoque
                       </button>
                     </td>
@@ -661,38 +772,85 @@
                 `).join('')}
               </tbody>
             </table>
-          ` : '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Nenhum produto sem estoque</div></div>'}
+          ` : emptyState('✅', 'Nenhum produto sem estoque')}
         </div>
       `;
     }
 
+    // Erros de formulário: mensagem geral da API + uma linha por campo inválido (respostas 400)
+    function showFormError(form, error) {
+      const box = form.querySelector('.form-error');
+      const fieldMessages = Object.values(error.fieldErrors || {});
+      box.innerHTML = `
+        <strong>${escapeHtml(error.message)}</strong>
+        ${fieldMessages.length > 0 ? `<ul>${fieldMessages.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul>` : ''}
+      `;
+      box.hidden = false;
+    }
+
+    function clearFormError(form) {
+      const box = form.querySelector('.form-error');
+      box.hidden = true;
+      box.innerHTML = '';
+    }
+
     // Modal Produto
-    function openProductModal(productId = null) {
+    let categories = [];
+
+    // A categoria é digitada livremente: usa a existente com o mesmo nome (sem diferenciar maiúsculas) ou cria uma nova
+    async function resolveCategoryId(name) {
+      const trimmed = name.trim();
+      if (!trimmed) return null;
+
+      const existing = categories.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
+      if (existing) return existing.id;
+
+      const created = await api.categories.create(trimmed);
+      categories.push(created);
+      return created.id;
+    }
+
+    async function openProductModal(productId = null) {
       const modal = document.getElementById('productModal');
       const form = document.getElementById('productForm');
       const title = document.getElementById('productModalTitle');
-      
-      // Preencher fornecedores
-      const supplierSelect = form.supplier;
-      supplierSelect.innerHTML = '<option value="">Selecione...</option>' + 
+
+      let suppliers;
+      let product = null;
+      try {
+        [categories, suppliers, product] = await Promise.all([
+          api.categories.list(),
+          api.suppliers.list(),
+          productId ? api.products.get(productId) : null
+        ]);
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+
+      form.reset();
+      clearFormError(form);
+      document.getElementById('categoryOptions').innerHTML =
+        categories.map(c => `<option value="${escapeHtml(c.name)}"></option>`).join('');
+      form.supplier.innerHTML = '<option value="">Selecione...</option>' +
         suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 
-      if (productId) {
-        const product = products.find(p => p.id === productId);
-        if (product) {
-          title.textContent = 'Editar Produto';
-          form.name.value = product.name;
-          form.sku.value = product.sku || '';
-          form.category.value = product.category || '';
-          form.qty.value = product.qty;
-          form.price.value = product.price;
-          form.minStock.value = product.minStock || 10;
-          form.supplier.value = product.supplier || '';
-          form.dataset.editId = productId;
-        }
+      // O saldo só muda por movimentações: na edição a quantidade aparece, mas não é editável
+      form.qty.disabled = Boolean(product);
+      document.getElementById('qtyHint').hidden = !product;
+
+      if (product) {
+        title.textContent = 'Editar Produto';
+        form.name.value = product.name;
+        form.sku.value = product.sku || '';
+        form.category.value = product.category?.name || '';
+        form.qty.value = product.quantity;
+        form.price.value = product.unitPrice;
+        form.minStock.value = product.minStock;
+        form.supplier.value = product.supplier?.id ?? '';
+        form.dataset.editId = product.id;
       } else {
         title.textContent = 'Novo Produto';
-        form.reset();
         delete form.dataset.editId;
       }
 
@@ -703,60 +861,76 @@
       const form = document.getElementById('productForm');
       document.getElementById('productModal').classList.remove('open');
       form.reset();
+      clearFormError(form);
       delete form.dataset.editId;
     }
 
     document.getElementById('closeProductModal').addEventListener('click', closeProductModal);
     document.getElementById('cancelProduct').addEventListener('click', closeProductModal);
 
-    document.getElementById('productForm').addEventListener('submit', (e) => {
+    document.getElementById('productForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
-      
-      const data = {
-        id: form.dataset.editId || generateId(),
-        name: form.name.value.trim(),
-        sku: form.sku.value.trim(),
-        category: form.category.value.trim(),
-        qty: parseInt(form.qty.value),
-        price: parseFloat(form.price.value),
-        minStock: parseInt(form.minStock.value) || 10,
-        supplier: form.supplier.value,
-        lastUpdate: new Date().toISOString()
-      };
+      const editId = form.dataset.editId;
+      const submitBtn = form.querySelector('button[type="submit"]');
 
-      if (form.dataset.editId) {
-        const index = products.findIndex(p => p.id === data.id);
-        products[index] = data;
-      } else {
-        products.unshift(data);
+      clearFormError(form);
+      submitBtn.disabled = true;
+      try {
+        const data = {
+          name: form.name.value.trim(),
+          sku: form.sku.value.trim() || null,
+          categoryId: await resolveCategoryId(form.category.value),
+          supplierId: form.supplier.value ? Number(form.supplier.value) : null,
+          unitPrice: parseFloat(form.price.value),
+          minStock: form.minStock.value === '' ? DEFAULT_MIN_STOCK : parseInt(form.minStock.value, 10)
+        };
+
+        if (editId) {
+          await api.products.update(editId, data);
+        } else {
+          // A quantidade inicial vira uma movimentação de entrada "Estoque inicial" na API
+          await api.products.create({ ...data, initialQuantity: parseInt(form.qty.value, 10) || 0 });
+        }
+
+        closeProductModal();
+        reloadCurrentPage();
+      } catch (error) {
+        showFormError(form, error);
+      } finally {
+        submitBtn.disabled = false;
       }
-
-      saveData();
-      closeProductModal();
-      renderProducts();
     });
 
     // Modal Fornecedor
-    function openSupplierModal(supplierId = null) {
+    async function openSupplierModal(supplierId = null) {
       const modal = document.getElementById('supplierModal');
       const form = document.getElementById('supplierForm');
       const title = document.getElementById('supplierModalTitle');
 
+      let supplier = null;
       if (supplierId) {
-        const supplier = suppliers.find(s => s.id === supplierId);
-        if (supplier) {
-          title.textContent = 'Editar Fornecedor';
-          form.name.value = supplier.name;
-          form.cnpj.value = supplier.cnpj || '';
-          form.phone.value = supplier.phone || '';
-          form.email.value = supplier.email || '';
-          form.address.value = supplier.address || '';
-          form.dataset.editId = supplierId;
+        try {
+          supplier = await api.suppliers.get(supplierId);
+        } catch (error) {
+          alert(error.message);
+          return;
         }
+      }
+
+      form.reset();
+      clearFormError(form);
+
+      if (supplier) {
+        title.textContent = 'Editar Fornecedor';
+        form.name.value = supplier.name;
+        form.cnpj.value = formatCnpj(supplier.cnpj) || '';
+        form.phone.value = supplier.phone || '';
+        form.email.value = supplier.email || '';
+        form.address.value = supplier.address || '';
+        form.dataset.editId = supplier.id;
       } else {
         title.textContent = 'Novo Fornecedor';
-        form.reset();
         delete form.dataset.editId;
       }
 
@@ -767,18 +941,21 @@
       const form = document.getElementById('supplierForm');
       document.getElementById('supplierModal').classList.remove('open');
       form.reset();
+      clearFormError(form);
       delete form.dataset.editId;
     }
 
     document.getElementById('closeSupplierModal').addEventListener('click', closeSupplierModal);
     document.getElementById('cancelSupplier').addEventListener('click', closeSupplierModal);
 
-    document.getElementById('supplierForm').addEventListener('submit', (e) => {
+    document.getElementById('supplierForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
-      
+      const editId = form.dataset.editId;
+      const submitBtn = form.querySelector('button[type="submit"]');
+
+      // A API remove a pontuação do CNPJ e converte campos vazios em nulo
       const data = {
-        id: form.dataset.editId || generateId(),
         name: form.name.value.trim(),
         cnpj: form.cnpj.value.trim(),
         phone: form.phone.value.trim(),
@@ -786,89 +963,84 @@
         address: form.address.value.trim()
       };
 
-      if (form.dataset.editId) {
-        const index = suppliers.findIndex(s => s.id === data.id);
-        suppliers[index] = data;
-      } else {
-        suppliers.unshift(data);
-      }
+      clearFormError(form);
+      submitBtn.disabled = true;
+      try {
+        if (editId) {
+          await api.suppliers.update(editId, data);
+        } else {
+          await api.suppliers.create(data);
+        }
 
-      saveData();
-      closeSupplierModal();
-      renderSuppliers();
+        closeSupplierModal();
+        reloadCurrentPage();
+      } catch (error) {
+        showFormError(form, error);
+      } finally {
+        submitBtn.disabled = false;
+      }
     });
 
     // Funções Globais
     window.editProduct = (id) => openProductModal(id);
     window.editSupplier = (id) => openSupplierModal(id);
 
-    window.deleteProduct = (id) => {
-      if (confirm('Deseja realmente excluir este produto?')) {
-        products = products.filter(p => p.id !== id);
-        saveData();
-        renderProducts();
+    window.deleteProduct = async (id) => {
+      if (!confirm('Deseja realmente excluir este produto?\n\nO histórico de movimentações dele continuará disponível.')) return;
+      try {
+        await api.products.remove(id);
+        reloadCurrentPage();
+      } catch (error) {
+        alert(error.message);
       }
     };
 
-    window.deleteSupplier = (id) => {
-      const hasProducts = products.some(p => p.supplier === id);
-      if (hasProducts) {
-        alert('Não é possível excluir este fornecedor pois existem produtos vinculados a ele.');
-        return;
-      }
-      if (confirm('Deseja realmente excluir este fornecedor?')) {
-        suppliers = suppliers.filter(s => s.id !== id);
-        saveData();
-        renderSuppliers();
+    // A API recusa (409) excluir fornecedor com produtos vinculados; a mensagem dela é exibida ao usuário
+    window.deleteSupplier = async (id) => {
+      if (!confirm('Deseja realmente excluir este fornecedor?')) return;
+      try {
+        await api.suppliers.remove(id);
+        reloadCurrentPage();
+      } catch (error) {
+        alert(error.message);
       }
     };
 
-    window.adjustStock = (id, type) => {
-      const product = products.find(p => p.id === id);
-      if (!product) return;
+    window.adjustStock = async (id, type) => {
+      const label = type === 'entry' ? 'Entrada' : 'Saída';
+      try {
+        const product = await api.products.get(id);
 
-      const qty = parseInt(prompt(`${type === 'entry' ? 'Entrada' : 'Saída'} de estoque para ${product.name}:\n\nQuantidade:`));
-      if (!qty || qty <= 0) return;
-
-      const oldQty = product.qty;
-      
-      if (type === 'entry') {
-        product.qty += qty;
-      } else {
-        if (product.qty < qty) {
-          alert('Quantidade insuficiente em estoque!');
+        const input = prompt(`${label} de estoque para ${product.name}\nSaldo atual: ${product.quantity}\n\nQuantidade:`);
+        if (input === null) return;
+        const qty = Number(input);
+        if (!Number.isInteger(qty) || qty <= 0) {
+          alert('Informe uma quantidade inteira maior que zero.');
           return;
         }
-        product.qty -= qty;
+
+        const notes = prompt('Observações (opcional):', '');
+        if (notes === null) return;
+
+        // Saída maior que o saldo é recusada pela API (422) com uma mensagem explicando o motivo
+        await api.products.registerMovement(id, {
+          type: type === 'entry' ? 'ENTRY' : 'EXIT',
+          quantity: qty,
+          notes: notes.trim() || null
+        });
+        reloadCurrentPage();
+      } catch (error) {
+        alert(error.message);
       }
-
-      product.lastUpdate = new Date().toISOString();
-
-      movements.unshift({
-        id: generateId(),
-        productId: product.id,
-        productName: product.name,
-        type: type,
-        qty: qty,
-        oldQty: oldQty,
-        newQty: product.qty,
-        date: new Date().toISOString(),
-        notes: ''
-      });
-
-      saveData();
-      renderProducts();
     };
 
     // Busca rápida do dashboard: ao apertar Enter, abre a página de produtos já filtrada
     function quickSearch(e) {
       if (e.key !== 'Enter') return;
-      const term = e.target.value.trim();
-
-      document.querySelector('.nav-item[data-page="products"]').click();
-      document.getElementById('searchProducts').value = term;
-      renderProductsTable(term);
+      resetFilters();
+      productFilters.search = e.target.value.trim();
+      navigateTo('products');
     }
 
     // Inicializar
-    renderDashboard();
+    showPage('dashboard');

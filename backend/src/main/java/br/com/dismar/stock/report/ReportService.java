@@ -18,6 +18,7 @@ import br.com.dismar.stock.report.ReportRepository.InventoryTotals;
 public class ReportService {
 
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
+    private static final int MAX_TOP_PRODUCTS = 50;
 
     private final ReportRepository reportRepository;
     private final ZoneId zoneId;
@@ -47,6 +48,14 @@ public class ReportService {
         return new InventorySummaryResponse(totalProducts, totals.getTotalQuantity(), totalValue, average,
                 totals.getLowStockProducts(), totals.getOutOfStockProducts(), reportRepository.countCategories(),
                 reportRepository.countMovementsSince(startOfMonth), byCategory);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TopProductResponse> topProducts(int limit) {
+        return reportRepository.mostValuableProducts(Math.clamp(limit, 1, MAX_TOP_PRODUCTS)).stream()
+                .map(p -> new TopProductResponse(p.getId(), p.getName(), p.getCategory(), p.getQuantity(),
+                        p.getTotalValue()))
+                .toList();
     }
 
     private static BigDecimal percentage(BigDecimal part, BigDecimal total) {
