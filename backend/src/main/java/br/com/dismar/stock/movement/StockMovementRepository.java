@@ -11,6 +11,6 @@ public interface StockMovementRepository
         extends JpaRepository<StockMovement, Long>, JpaSpecificationExecutor<StockMovement> {
 
     @Override
-    @EntityGraph(attributePaths = "product")
+    @EntityGraph(attributePaths = {"product", "user"})
     Page<StockMovement> findAll(Specification<StockMovement> spec, Pageable pageable);
 }

@@ -11,6 +11,7 @@ import br.com.dismar.stock.movement.MovementType;
 import br.com.dismar.stock.movement.StockMovement;
 import br.com.dismar.stock.shared.exception.BusinessException;
 import br.com.dismar.stock.supplier.Supplier;
+import br.com.dismar.stock.user.AppUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -81,15 +82,18 @@ public class Product {
         this.minStock = minStock;
     }
 
-    /** Aplica uma entrada ou saída ao saldo e devolve a movimentação correspondente para ser salva. */
-    public StockMovement registerMovement(MovementType type, int amount, String notes) {
+    /**
+     * Aplica uma entrada ou saída ao saldo e devolve a movimentação correspondente para ser salva.
+     * registeredBy é quem fez a operação (nulo fora de uma requisição autenticada).
+     */
+    public StockMovement registerMovement(MovementType type, int amount, String notes, AppUser registeredBy) {
         int previousQuantity = quantity;
         if (type == MovementType.EXIT && amount > quantity) {
             throw new BusinessException("Estoque insuficiente: '" + name + "' tem " + quantity
                     + " unidade(s) e a saída solicitada é de " + amount + ".");
         }
         quantity = type == MovementType.ENTRY ? quantity + amount : quantity - amount;
-        return new StockMovement(this, type, amount, previousQuantity, quantity, notes);
+        return new StockMovement(this, type, amount, previousQuantity, quantity, notes, registeredBy);
     }
 
     public void deactivate() {

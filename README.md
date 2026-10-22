@@ -93,6 +93,15 @@ The project has two parts:
 * Configurable minimum stock levels
 * Quick stock replenishment actions
 
+### 🔐 Users and Access
+
+* Login with e-mail and password (JWT)
+* Two profiles: **Administrador** manages users; **Usuário** operates the inventory
+* Create users, change profiles, deactivate/reactivate and reset passwords (administrators)
+* Change your own password
+* Every stock movement records who registered it
+* Deactivating a user blocks access immediately
+
 ### 🌙 Interface
 
 * Light theme
@@ -117,6 +126,7 @@ The project has two parts:
 | Spring Data JPA / Hibernate | Data access |
 | PostgreSQL   | Relational database (see [Data Model](#-data-model)) |
 | Flyway       | Versioned database migrations |
+| Spring Security (OAuth2 Resource Server) | JWT authentication and authorization |
 | springdoc-openapi | Interactive API documentation (Swagger UI) |
 | Testcontainers | Disposable PostgreSQL for automated tests |
 
@@ -143,7 +153,9 @@ dismar_stock/
 │       │   │   ├── product/  #   controller and DTOs together
 │       │   │   ├── movement/
 │       │   │   ├── report/
-│       │   │   ├── config/
+│       │   │   ├── user/     # Users, profiles, first-admin bootstrap
+│       │   │   ├── auth/     # Login, JWT issuing and validation
+│       │   │   ├── config/   # Security (routes, CORS) and OpenAPI
 │       │   │   └── shared/   # Error handling, CNPJ validation
 │       │   └── resources/db/
 │       │       ├── migration/ # Flyway migrations (database schema)
@@ -187,7 +199,14 @@ On startup, Flyway creates the tables automatically. To load the sample data:
 docker compose exec -T postgres psql -U dismar -d dismar < src/main/resources/db/seed/dev_seed.sql
 ```
 
-Interactive documentation: **http://localhost:8080/swagger-ui.html**
+The sample data includes two users, both with the password `dismar123`:
+
+| E-mail | Profile |
+| --- | --- |
+| `admin@dismar.local` | Administrador |
+| `operador@dismar.local` | Usuário |
+
+Interactive documentation: **http://localhost:8080/swagger-ui.html**. Call `POST /api/auth/login`, copy the `accessToken` and paste it into **Authorize** to try the protected endpoints.
 
 | Environment variable | Default | Description |
 | --- | --- | --- |
@@ -195,6 +214,11 @@ Interactive documentation: **http://localhost:8080/swagger-ui.html**
 | `DB_USERNAME` / `DB_PASSWORD` | `dismar` / `dismar` | Database credentials (local only) |
 | `PORT` | `8080` | HTTP port |
 | `CORS_ALLOWED_ORIGINS` | Live Server + GitHub Pages | Front-end origins allowed to call the API |
+| `JWT_SECRET` | random key per start | Key that signs the tokens (at least 32 characters). Without it, every restart logs everyone out, so always set it in production. |
+| `JWT_EXPIRATION` | `8h` | How long a login lasts |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | empty / empty / `Administrador` | Creates the first administrator on startup, **only if the database has no users yet** |
+
+In production (without the sample data), set `ADMIN_EMAIL` and `ADMIN_PASSWORD` for the first start, log in as that administrator, and create the other users from the **Usuários** page.
 
 Run the tests with `./mvnw test`. Docker must be running, because Testcontainers starts a temporary PostgreSQL.
 
@@ -206,7 +230,7 @@ Serve the project folder on port **5500**, for example with the **Live Server** 
 python -m http.server 5500
 ```
 
-Then open **http://localhost:5500**.
+Then open **http://localhost:5500** and log in (see the sample users above).
 
 > Opening `index.html` directly from the file system (`file://`) does not work: the browser sends the request with a `null` origin, which the API's CORS configuration rejects. To use another port, add its origin to `CORS_ALLOWED_ORIGINS`.
 
@@ -223,8 +247,15 @@ If the API is unreachable, each page shows an error message with a **Tentar nova
 
 ## 🔌 API
 
+Every endpoint except `POST /api/auth/login` requires the header `Authorization: Bearer <token>`.
+
 | Method | Endpoint | Description |
 | --- | --- | --- |
+| `POST` | `/api/auth/login` | Log in with e-mail and password; returns the token, its expiration and the user |
+| `GET` | `/api/auth/me` | Logged-in user |
+| `PUT` | `/api/auth/password` | Change your own password (requires the current one) |
+| `GET` / `POST` | `/api/users` | List and create users (**ADMIN only**) |
+| `GET` / `PUT` | `/api/users/{id}` | View and update name, profile, status, or reset the password (**ADMIN only**) |
 | `GET` | `/api/categories` | List categories |
 | `POST` / `PUT` / `DELETE` | `/api/categories[/{id}]` | Create, rename, delete |
 | `GET` | `/api/suppliers?search=` | List suppliers (search by name, CNPJ or e-mail) |
@@ -242,6 +273,11 @@ If the API is unreachable, each page shows an error message with a **Tentar nova
 * **Exits can't exceed the current balance.** The API responds with `422 Unprocessable Content`.
 * **Concurrent movements are safe.** The product row is locked (`SELECT ... FOR UPDATE`) while a movement is registered, so two simultaneous exits can't read the same balance. [`StockMovementConcurrencyTests`](backend/src/test/java/br/com/dismar/stock/movement/StockMovementConcurrencyTests.java) fires 20 simultaneous exits of 1 unit at a product with 7 in stock and checks that exactly 7 succeed and the final balance is 0.
 * **CNPJ is validated by its check digits**, with or without punctuation, including the alphanumeric format.
+* **Missing or expired token → `401`; not enough permission → `403`.** Both use the same error format as the rest of the API.
+* **Deactivation and profile changes take effect immediately.** The token carries only the user id; on every request the API checks the user's current status and profile in the database.
+* **Passwords are stored with BCrypt.** The login answers "E-mail ou senha inválidos." for both an unknown e-mail and a wrong password, and takes the same time in both cases, so it doesn't reveal which e-mails are registered.
+* **There is always an active administrator.** Administrators can't deactivate themselves or remove their own ADMIN profile.
+* **Users are deactivated, not deleted**, so the movement history keeps pointing to who registered each movement.
 * **Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) (Problem Details)**, with per-field messages on validation errors:
 
 ```json
@@ -261,7 +297,7 @@ If the API is unreachable, each page shows an error message with a **Tentar nova
 | Where | What |
 | --- | --- |
 | PostgreSQL (through the API) | Categories, suppliers, products and stock movements. See [Data Model](#-data-model). |
-| Browser `localStorage` | Only the theme preference (`dismar_v2_config`). |
+| Browser `localStorage` | The theme preference (`dismar_v2_config`) and the login session (`dismar_v2_session`: token, expiration and user). Logging out removes the session. |
 
 Data saved by versions before Phase 3 (`dismar_v2_products`, `dismar_v2_suppliers` and `dismar_v2_movements` in `localStorage`) is no longer read, and it isn't imported into the database automatically. It is left untouched in the browser.
 
@@ -269,13 +305,14 @@ Data saved by versions before Phase 3 (`dismar_v2_products`, `dismar_v2_supplier
 
 ## 🗄️ Data Model
 
-Data is stored in a **PostgreSQL** database (Supabase is the planned host), accessed through the REST API. The schema is versioned with Flyway in [`V1__create_schema.sql`](backend/src/main/resources/db/migration/V1__create_schema.sql).
+Data is stored in a **PostgreSQL** database (Supabase is the planned host), accessed through the REST API. The schema is versioned with Flyway in [`V1__create_schema.sql`](backend/src/main/resources/db/migration/V1__create_schema.sql) and [`V2__create_app_user.sql`](backend/src/main/resources/db/migration/V2__create_app_user.sql).
 
 ```mermaid
 erDiagram
     CATEGORY ||--o{ PRODUCT : classifies
     SUPPLIER ||--o{ PRODUCT : supplies
     PRODUCT  ||--o{ STOCK_MOVEMENT : "has history"
+    APP_USER ||--o{ STOCK_MOVEMENT : registers
 
     CATEGORY {
         bigint id PK
@@ -313,7 +350,18 @@ erDiagram
         int previous_quantity
         int new_quantity
         varchar notes
+        bigint user_id FK "null before Phase 4"
         timestamptz created_at
+    }
+    APP_USER {
+        bigint id PK
+        varchar name
+        varchar email UK "case-insensitive"
+        varchar password_hash "BCrypt"
+        varchar role "ADMIN | USER"
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
     }
 ```
 
@@ -327,6 +375,7 @@ erDiagram
 | **`CHECK` constraints on stock** | Negative stock, negative prices and movements whose balance doesn't add up (`new = previous ± quantity`) are rejected by the database itself. |
 | **`NUMERIC(12,2)` for prices** | Exact decimal arithmetic. Floating-point types cause rounding errors with money. |
 | **CNPJ stored without punctuation** | Avoids duplicates such as `11.222.333/0001-81` vs `11222333000181`. The format also accepts the alphanumeric CNPJ issued since July 2026. |
+| **Table named `app_user`** | `user` is a reserved word in PostgreSQL. |
 | **Indexes on foreign keys** | PostgreSQL does not index foreign keys automatically, and these columns are used in joins and filters. |
 
 Sample data for development is available in [`dev_seed.sql`](backend/src/main/resources/db/seed/dev_seed.sql).
@@ -337,8 +386,9 @@ Sample data for development is available in [`dev_seed.sql`](backend/src/main/re
 
 The current version does not yet include:
 
-* User authentication
-* Multi-user accounts
+* Login rate limiting (repeated wrong passwords aren't throttled yet)
+* Refresh tokens: when the session expires (`JWT_EXPIRATION`), the user logs in again
+* Password recovery by e-mail (an administrator resets it instead)
 * Multi-company support
 * Automatic backups
 * A deployed API and database (the API currently runs locally)
@@ -353,7 +403,7 @@ The project is evolving from a browser-only app into a full-stack application:
 * [x] **Phase 1:** Relational data model (PostgreSQL + Flyway migrations)
 * [x] **Phase 2:** REST API with Java + Spring Boot
 * [x] **Phase 3:** Front-end consuming the API instead of `localStorage`
-* [ ] **Phase 4:** User authentication with JWT
+* [x] **Phase 4:** User authentication with JWT
 * [ ] **Phase 5:** Automated tests (JUnit) and CI with GitHub Actions
 * [ ] **Phase 6:** Docker and cloud deployment
 

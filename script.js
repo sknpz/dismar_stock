@@ -70,6 +70,13 @@
       </div>
     `;
 
+    // 401 já leva para a tela de login (api.onUnauthorized); os demais erros são exibidos ao usuário
+    const reportError = (error) => {
+      if (error.status !== 401) alert(error.message);
+    };
+
+    const ROLE_LABELS = { ADMIN: 'Administrador', USER: 'Usuário' };
+
     const movementBadge = (type, arrow = '') => type === 'ENTRY'
       ? `<span class="badge badge-success">${arrow ? '↗ ' : ''}Entrada</span>`
       : `<span class="badge badge-danger">${arrow ? '↘ ' : ''}Saída</span>`;
@@ -128,7 +135,8 @@
       suppliers: { load: loadSuppliers, render: renderSuppliers },
       movements: { load: loadMovements, render: renderMovements },
       reports: { load: loadReports, render: renderReports },
-      alerts: { load: loadAlerts, render: renderAlerts }
+      alerts: { load: loadAlerts, render: renderAlerts },
+      users: { load: loadUsers, render: renderUsers }
     };
 
     let currentPage = 'dashboard';
@@ -145,7 +153,8 @@
         // Se o usuário trocou de página enquanto a API respondia, esta resposta não é mais necessária
         if (id === navigationId) pages[page].render(data);
       } catch (error) {
-        if (id === navigationId) renderPageError(error);
+        // 401: a tela de login já assumiu (api.onUnauthorized), não há página de erro para mostrar
+        if (id === navigationId && error.status !== 401) renderPageError(error);
       }
     }
 
@@ -579,6 +588,7 @@
               <th>Quantidade</th>
               <th>Saldo</th>
               <th>Observações</th>
+              <th>Usuário</th>
             </tr>
           </thead>
           <tbody>
@@ -590,6 +600,7 @@
                 <td><strong>${m.quantity}</strong></td>
                 <td>${m.previousQuantity} → ${m.newQuantity}</td>
                 <td>${escapeHtml(m.notes || '-')}</td>
+                <td>${escapeHtml(m.user?.name || '-')}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -824,7 +835,7 @@
           productId ? api.products.get(productId) : null
         ]);
       } catch (error) {
-        alert(error.message);
+        reportError(error);
         return;
       }
 
@@ -913,7 +924,7 @@
         try {
           supplier = await api.suppliers.get(supplierId);
         } catch (error) {
-          alert(error.message);
+          reportError(error);
           return;
         }
       }
@@ -991,7 +1002,7 @@
         await api.products.remove(id);
         reloadCurrentPage();
       } catch (error) {
-        alert(error.message);
+        reportError(error);
       }
     };
 
@@ -1002,7 +1013,7 @@
         await api.suppliers.remove(id);
         reloadCurrentPage();
       } catch (error) {
-        alert(error.message);
+        reportError(error);
       }
     };
 
@@ -1030,9 +1041,261 @@
         });
         reloadCurrentPage();
       } catch (error) {
-        alert(error.message);
+        reportError(error);
       }
     };
+
+    // Usuários (somente administradores; a API responde 403 para os demais)
+    function loadUsers() {
+      return api.users.list();
+    }
+
+    function renderUsers(users) {
+      const currentUserId = session.user()?.id;
+
+      document.getElementById('mainContent').innerHTML = `
+        <div class="top-bar">
+          <div class="page-title">
+            <h2>Usuários</h2>
+            <p>Quem pode acessar o sistema</p>
+          </div>
+          <div class="top-actions">
+            <button class="btn btn-primary" id="addUserBtn">
+              <span>➕</span> Novo Usuário
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          ${users.length > 0 ? `
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>E-mail</th>
+                  <th>Perfil</th>
+                  <th>Situação</th>
+                  <th>Cadastro</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${users.map(u => `
+                  <tr>
+                    <td>
+                      <strong>${escapeHtml(u.name)}</strong>
+                      ${u.id === currentUserId ? '<small style="color: var(--text-muted);">(você)</small>' : ''}
+                    </td>
+                    <td>${escapeHtml(u.email)}</td>
+                    <td>${u.role === 'ADMIN' ? '🛡️ ' : ''}${ROLE_LABELS[u.role]}</td>
+                    <td><span class="badge ${u.active ? 'badge-success' : 'badge-danger'}">${u.active ? 'Ativo' : 'Inativo'}</span></td>
+                    <td>${formatDate(u.createdAt)}</td>
+                    <td>
+                      <div class="action-btns">
+                        <button class="btn-icon" onclick="editUser(${u.id})" title="Editar">✏️</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : emptyState('👥', 'Nenhum usuário cadastrado')}
+        </div>
+      `;
+
+      document.getElementById('addUserBtn').addEventListener('click', () => openUserModal());
+    }
+
+    // Modal Usuário
+    async function openUserModal(userId = null) {
+      const modal = document.getElementById('userModal');
+      const form = document.getElementById('userForm');
+
+      let user = null;
+      if (userId) {
+        try {
+          user = await api.users.get(userId);
+        } catch (error) {
+          reportError(error);
+          return;
+        }
+      }
+
+      form.reset();
+      clearFormError(form);
+
+      // Na edição o e-mail (login) fica fixo e a senha é opcional: preenchida, redefine a senha do usuário
+      const editing = Boolean(user);
+      document.getElementById('userModalTitle').textContent = editing ? 'Editar Usuário' : 'Novo Usuário';
+      form.email.disabled = editing;
+      document.getElementById('userEmailHint').hidden = !editing;
+      form.password.required = !editing;
+      document.getElementById('userPasswordLabel').textContent = editing ? 'Nova senha' : 'Senha *';
+      document.getElementById('userPasswordHint').textContent = editing
+        ? 'Deixe em branco para manter a senha atual.'
+        : 'Mínimo de 8 caracteres.';
+      document.getElementById('userActiveGroup').hidden = !editing;
+
+      if (editing) {
+        form.name.value = user.name;
+        form.email.value = user.email;
+        form.role.value = user.role;
+        form.active.checked = user.active;
+        form.dataset.editId = user.id;
+      } else {
+        delete form.dataset.editId;
+      }
+
+      modal.classList.add('open');
+    }
+
+    function closeUserModal() {
+      const form = document.getElementById('userForm');
+      document.getElementById('userModal').classList.remove('open');
+      form.reset();
+      clearFormError(form);
+      delete form.dataset.editId;
+    }
+
+    document.getElementById('closeUserModal').addEventListener('click', closeUserModal);
+    document.getElementById('cancelUser').addEventListener('click', closeUserModal);
+
+    document.getElementById('userForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const editId = form.dataset.editId;
+      const submitBtn = form.querySelector('button[type="submit"]');
+
+      clearFormError(form);
+      submitBtn.disabled = true;
+      try {
+        if (editId) {
+          const updated = await api.users.update(editId, {
+            name: form.name.value.trim(),
+            role: form.role.value,
+            active: form.active.checked,
+            password: form.password.value || null
+          });
+          // Editou o próprio cadastro: atualiza o nome exibido na barra lateral
+          if (updated.id === session.user()?.id) {
+            session.updateUser(updated);
+            renderSessionUser();
+          }
+        } else {
+          await api.users.create({
+            name: form.name.value.trim(),
+            email: form.email.value.trim(),
+            password: form.password.value,
+            role: form.role.value
+          });
+        }
+
+        closeUserModal();
+        reloadCurrentPage();
+      } catch (error) {
+        showFormError(form, error);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    window.editUser = (id) => openUserModal(id);
+
+    // Modal Alterar Senha
+    function openPasswordModal() {
+      const form = document.getElementById('passwordForm');
+      form.reset();
+      clearFormError(form);
+      document.getElementById('passwordModal').classList.add('open');
+    }
+
+    function closePasswordModal() {
+      const form = document.getElementById('passwordForm');
+      document.getElementById('passwordModal').classList.remove('open');
+      form.reset();
+      clearFormError(form);
+    }
+
+    document.getElementById('changePasswordBtn').addEventListener('click', openPasswordModal);
+    document.getElementById('closePasswordModal').addEventListener('click', closePasswordModal);
+    document.getElementById('cancelPassword').addEventListener('click', closePasswordModal);
+
+    document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+
+      clearFormError(form);
+      if (form.newPassword.value !== form.confirmPassword.value) {
+        showFormError(form, { message: 'A confirmação não confere com a nova senha.' });
+        return;
+      }
+
+      submitBtn.disabled = true;
+      try {
+        await api.auth.changePassword(form.currentPassword.value, form.newPassword.value);
+        closePasswordModal();
+        alert('Senha alterada com sucesso.');
+      } catch (error) {
+        showFormError(form, error);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    // Sessão: alterna entre a tela de login e o sistema
+    function renderSessionUser() {
+      const user = session.user();
+      if (!user) return;
+      document.getElementById('currentUserName').textContent = user.name;
+      document.getElementById('currentUserRole').textContent = ROLE_LABELS[user.role];
+      document.getElementById('adminNav').hidden = user.role !== 'ADMIN';
+    }
+
+    function showApp() {
+      document.getElementById('loginScreen').hidden = true;
+      document.getElementById('app').hidden = false;
+      renderSessionUser();
+      resetFilters();
+      navigateTo('dashboard');
+    }
+
+    function showLogin(message = '') {
+      document.querySelectorAll('.modal.open').forEach(modal => modal.classList.remove('open'));
+      document.getElementById('app').hidden = true;
+      document.getElementById('loginScreen').hidden = false;
+
+      const form = document.getElementById('loginForm');
+      clearFormError(form);
+      if (message) showFormError(form, { message });
+      form.email.focus();
+    }
+
+    // Token expirado ou usuário desativado durante o uso: volta para o login com a mensagem da API
+    api.onUnauthorized = (message) => showLogin(message);
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+
+      clearFormError(form);
+      submitBtn.disabled = true;
+      try {
+        await api.auth.login(form.email.value.trim(), form.password.value);
+        form.reset();
+        showApp();
+      } catch (error) {
+        showFormError(form, error);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      api.auth.logout();
+      showLogin();
+    });
 
     // Busca rápida do dashboard: ao apertar Enter, abre a página de produtos já filtrada
     function quickSearch(e) {
@@ -1042,5 +1305,9 @@
       navigateTo('products');
     }
 
-    // Inicializar
-    showPage('dashboard');
+    // Inicializar: com uma sessão válida abre o sistema; sem ela, a tela de login
+    if (session.get()) {
+      showApp();
+    } else {
+      showLogin();
+    }

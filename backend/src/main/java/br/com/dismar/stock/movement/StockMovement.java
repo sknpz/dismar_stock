@@ -5,6 +5,7 @@ import java.time.Instant;
 import org.hibernate.annotations.CreationTimestamp;
 
 import br.com.dismar.stock.product.Product;
+import br.com.dismar.stock.user.AppUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -46,6 +47,11 @@ public class StockMovement {
     @Column(length = 255, updatable = false)
     private String notes;
 
+    // Quem registrou a movimentação; nulo nas anteriores à autenticação
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", updatable = false)
+    private AppUser user;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -55,13 +61,14 @@ public class StockMovement {
     }
 
     public StockMovement(Product product, MovementType type, int quantity, int previousQuantity, int newQuantity,
-            String notes) {
+            String notes, AppUser user) {
         this.product = product;
         this.type = type;
         this.quantity = quantity;
         this.previousQuantity = previousQuantity;
         this.newQuantity = newQuantity;
         this.notes = notes;
+        this.user = user;
     }
 
     public Long getId() {
@@ -90,6 +97,10 @@ public class StockMovement {
 
     public String getNotes() {
         return notes;
+    }
+
+    public AppUser getUser() {
+        return user;
     }
 
     public Instant getCreatedAt() {

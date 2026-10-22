@@ -9,16 +9,20 @@ import org.springframework.transaction.annotation.Transactional;
 import br.com.dismar.stock.product.Product;
 import br.com.dismar.stock.product.ProductRepository;
 import br.com.dismar.stock.shared.exception.ResourceNotFoundException;
+import br.com.dismar.stock.user.CurrentUser;
 
 @Service
 public class StockMovementService {
 
     private final StockMovementRepository movementRepository;
     private final ProductRepository productRepository;
+    private final CurrentUser currentUser;
 
-    public StockMovementService(StockMovementRepository movementRepository, ProductRepository productRepository) {
+    public StockMovementService(StockMovementRepository movementRepository, ProductRepository productRepository,
+            CurrentUser currentUser) {
         this.movementRepository = movementRepository;
         this.productRepository = productRepository;
+        this.currentUser = currentUser;
     }
 
     @Transactional
@@ -27,7 +31,8 @@ public class StockMovementService {
                 .orElseThrow(() -> new ResourceNotFoundException("Produto", productId));
 
         String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
-        StockMovement movement = product.registerMovement(request.type(), request.quantity(), notes);
+        StockMovement movement = product.registerMovement(request.type(), request.quantity(), notes,
+                currentUser.reference().orElse(null));
         return StockMovementResponse.from(movementRepository.save(movement));
     }
 

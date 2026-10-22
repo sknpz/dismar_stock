@@ -12,7 +12,34 @@
 
 </head>
 <body>
-  <div class="app">
+  <!-- Tela de login: exibida enquanto não há sessão válida -->
+  <div class="login-screen" id="loginScreen" hidden>
+    <div class="login-card">
+      <div class="brand">
+        <div class="logo"></div>
+        <div class="brand-text">
+          <h1>DISMAR</h1>
+          <p>Gestão Inteligente</p>
+        </div>
+      </div>
+      <h2 class="login-title">Entrar</h2>
+      <p class="login-subtitle">Use o e-mail e a senha cadastrados pelo administrador.</p>
+      <form id="loginForm">
+        <div class="form-error" role="alert" hidden></div>
+        <div class="form-group">
+          <label class="form-label" for="loginEmail">E-mail</label>
+          <input type="email" class="form-input" id="loginEmail" name="email" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">Senha</label>
+          <input type="password" class="form-input" id="loginPassword" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary login-submit">Entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="app" id="app" hidden>
     <aside class="sidebar">
       <div class="brand">
         <div class="logo"></div>
@@ -54,7 +81,26 @@
             Alertas
           </a>
         </div>
+
+        <div class="nav-section" id="adminNav" hidden>
+          <div class="nav-title">Administração</div>
+          <a href="#" class="nav-item" data-page="users">
+            <span class="nav-icon">👥</span>
+            Usuários
+          </a>
+        </div>
       </nav>
+
+      <div class="user-box">
+        <div class="user-info">
+          <strong id="currentUserName"></strong>
+          <small id="currentUserRole"></small>
+        </div>
+        <div class="action-btns">
+          <button class="btn-icon" id="changePasswordBtn" title="Alterar senha">🔑</button>
+          <button class="btn-icon" id="logoutBtn" title="Sair">🚪</button>
+        </div>
+      </div>
 
       <div class="theme-toggle" id="themeToggle">
         <span style="font-size: 14px; font-weight: 500;">Tema Escuro</span>
@@ -160,6 +206,83 @@
       </form>
     </div>
   </div>
+  <!-- Modal Usuário (somente administradores) -->
+  <div class="modal" id="userModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="userModalTitle">Novo Usuário</h3>
+        <button class="close-btn" id="closeUserModal">×</button>
+      </div>
+      <form id="userForm">
+        <div class="form-error" role="alert" hidden></div>
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input type="text" class="form-input" name="name" maxlength="150" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail *</label>
+          <input type="email" class="form-input" name="email" maxlength="150" autocomplete="off" required>
+          <small class="form-hint" id="userEmailHint" hidden>O e-mail é o login do usuário e não pode ser alterado.</small>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" id="userPasswordLabel">Senha *</label>
+            <input type="password" class="form-input" name="password" minlength="8" maxlength="72" autocomplete="new-password">
+            <small class="form-hint" id="userPasswordHint">Mínimo de 8 caracteres.</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Perfil *</label>
+            <select class="form-select" name="role">
+              <option value="USER">Usuário</option>
+              <option value="ADMIN">Administrador</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="userActiveGroup" hidden>
+          <label class="form-check">
+            <input type="checkbox" name="active">
+            Usuário ativo (desmarque para bloquear o acesso)
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelUser">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Usuário</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Alterar Senha (usuário logado) -->
+  <div class="modal" id="passwordModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Alterar Senha</h3>
+        <button class="close-btn" id="closePasswordModal">×</button>
+      </div>
+      <form id="passwordForm">
+        <div class="form-error" role="alert" hidden></div>
+        <div class="form-group">
+          <label class="form-label">Senha atual *</label>
+          <input type="password" class="form-input" name="currentPassword" autocomplete="current-password" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nova senha *</label>
+            <input type="password" class="form-input" name="newPassword" minlength="8" maxlength="72" autocomplete="new-password" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Confirme a nova senha *</label>
+            <input type="password" class="form-input" name="confirmPassword" minlength="8" maxlength="72" autocomplete="new-password" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelPassword">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Alterar Senha</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="api.js"></script>
   <script src="script.js"></script>
 </body>

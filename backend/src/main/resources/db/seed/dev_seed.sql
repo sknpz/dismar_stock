@@ -2,6 +2,12 @@
 -- Não faz parte das migrations: rode manualmente em um banco vazio.
 -- CNPJs fictícios (formato válido, não pertencem a empresas reais).
 
+-- Usuários de desenvolvimento. Senha dos dois: dismar123 (hash BCrypt abaixo).
+-- Nunca use estes usuários em produção: lá o primeiro administrador vem de ADMIN_EMAIL/ADMIN_PASSWORD.
+INSERT INTO app_user (name, email, password_hash, role) VALUES
+    ('Administrador', 'admin@dismar.local',    '{bcrypt}$2a$10$g6Vx.bVHbhAGHWenyjgKCuaTe5pjU0na1cA3qQeDbbvlUiu3rVR7S', 'ADMIN'),
+    ('Operador',      'operador@dismar.local', '{bcrypt}$2a$10$g6Vx.bVHbhAGHWenyjgKCuaTe5pjU0na1cA3qQeDbbvlUiu3rVR7S', 'USER');
+
 INSERT INTO category (name) VALUES
     ('Ferragens'),
     ('Elétrica'),
@@ -23,14 +29,14 @@ INSERT INTO product (name, sku, category_id, supplier_id, unit_price, quantity, 
     ('Furadeira de impacto 650W',       'TOO-001', 4, 1, 329.90,   6,  3);
 
 -- O saldo atual de cada produto acima é o resultado destas movimentações
-INSERT INTO stock_movement (product_id, type, quantity, previous_quantity, new_quantity, notes, created_at) VALUES
-    (1, 'ENTRY', 150,   0, 150, 'Estoque inicial',          now() - interval '20 days'),
-    (1, 'EXIT',   30, 150, 120, 'Venda balcão',             now() - interval '3 days'),
-    (2, 'ENTRY',  40,   0,  40, 'Estoque inicial',          now() - interval '20 days'),
-    (2, 'EXIT',   15,  40,  25, 'Pedido #1042',             now() - interval '2 days'),
-    (3, 'ENTRY',  14,   0,  14, 'Estoque inicial',          now() - interval '18 days'),
-    (4, 'ENTRY',  10,   0,  10, 'Estoque inicial',          now() - interval '18 days'),
-    (4, 'EXIT',   10,  10,   0, 'Obra Residencial Jardim',  now() - interval '1 day'),
-    (5, 'ENTRY',  60,   0,  60, 'Estoque inicial',          now() - interval '15 days'),
-    (6, 'ENTRY',   8,   0,   8, 'Estoque inicial',          now() - interval '15 days'),
-    (7, 'ENTRY',   6,   0,   6, 'Estoque inicial',          now() - interval '10 days');
+INSERT INTO stock_movement (product_id, type, quantity, previous_quantity, new_quantity, notes, user_id, created_at) VALUES
+    (1, 'ENTRY', 150,   0, 150, 'Estoque inicial',         1, now() - interval '20 days'),
+    (1, 'EXIT',   30, 150, 120, 'Venda balcão',            2, now() - interval '3 days'),
+    (2, 'ENTRY',  40,   0,  40, 'Estoque inicial',         1, now() - interval '20 days'),
+    (2, 'EXIT',   15,  40,  25, 'Pedido #1042',            2, now() - interval '2 days'),
+    (3, 'ENTRY',  14,   0,  14, 'Estoque inicial',         1, now() - interval '18 days'),
+    (4, 'ENTRY',  10,   0,  10, 'Estoque inicial',         1, now() - interval '18 days'),
+    (4, 'EXIT',   10,  10,   0, 'Obra Residencial Jardim', 2, now() - interval '1 day'),
+    (5, 'ENTRY',  60,   0,  60, 'Estoque inicial',         1, now() - interval '15 days'),
+    (6, 'ENTRY',   8,   0,   8, 'Estoque inicial',         1, now() - interval '15 days'),
+    (7, 'ENTRY',   6,   0,   6, 'Estoque inicial',         1, now() - interval '10 days');

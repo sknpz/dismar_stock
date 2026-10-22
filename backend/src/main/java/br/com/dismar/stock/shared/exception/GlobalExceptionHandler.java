@@ -12,6 +12,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,6 +45,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     ProblemDetail handleBusiness(BusinessException ex) {
         return problem(HttpStatus.UNPROCESSABLE_CONTENT, "Regra de negócio violada", ex.getMessage());
+    }
+
+    // Login recusado (senha errada, usuário desativado): a mensagem já é adequada ao usuário
+    @ExceptionHandler({BadCredentialsException.class, DisabledException.class})
+    ProblemDetail handleLoginRejected(AuthenticationException ex) {
+        return problem(HttpStatus.UNAUTHORIZED, "Não autenticado", ex.getMessage());
+    }
+
+    // Token ausente, expirado ou inválido
+    @ExceptionHandler(AuthenticationException.class)
+    ProblemDetail handleUnauthenticated(AuthenticationException ex) {
+        return problem(HttpStatus.UNAUTHORIZED, "Não autenticado",
+                "Faça login para continuar. Se você já estava logado, a sua sessão expirou.");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ProblemDetail handleAccessDenied(AccessDeniedException ex) {
+        return problem(HttpStatus.FORBIDDEN, "Acesso negado", "O seu usuário não tem permissão para esta operação.");
     }
 
     @ExceptionHandler(PropertyReferenceException.class)
