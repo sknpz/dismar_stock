@@ -1,0 +1,42 @@
+# Blueprint do Render: no painel, New → Blueprint → este repositório cria a API já configurada.
+# Os valores marcados com sync: false são pedidos pelo painel na criação e nunca ficam no repositório.
+services:
+  - type: web
+    name: dismar-stock-api
+    runtime: docker
+    plan: free
+    # Região mais próxima do Brasil entre as do Render; crie o banco do Supabase em East US (N. Virginia)
+    region: virginia
+    branch: main
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /actuator/health/liveness
+    # Só publica depois que o CI passar, e só quando algo da API mudar
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - backend/**
+    envVars:
+      # Session pooler do Supabase (porta 5432), por exemplo:
+      # jdbc:postgresql://aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+      - key: DB_URL
+        sync: false
+      # No pooler o usuário inclui o id do projeto: postgres.<id-do-projeto>
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # O plano gratuito do Supabase limita as conexões simultâneas
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://sknpz.github.io
+      # O Render atende em HTTPS e repassa para a API em HTTP: faz o Swagger gerar links https
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: framework
