@@ -26,10 +26,8 @@ The application provides a complete dashboard with inventory statistics, product
 
 The project has two parts:
 
-* **Front-end** (`index.html`, `style.css`, `script.js`): runs in the browser and, for now, still stores its data in `localStorage`.
+* **Front-end** (`index.html`, `style.css`, `script.js`, `api.js`): vanilla JavaScript that runs in the browser and reads and writes all data through the API.
 * **REST API** (`backend/`): Java 21 + Spring Boot, persisting data in PostgreSQL and enforcing the business rules on the server.
-
-Connecting the front-end to the API is Phase 3 of the [roadmap](#-roadmap).
 
 ## ✨ Features
 
@@ -112,7 +110,8 @@ Connecting the front-end to the API is Phase 3 of the [roadmap](#-roadmap).
 | HTML5        | Application structure                  |
 | CSS3         | Layout and visual styling              |
 | JavaScript   | Application logic and DOM manipulation |
-| LocalStorage | Browser-side data persistence          |
+| Fetch API    | Front-end calls to the REST API        |
+| LocalStorage | Theme preference                       |
 | Google Fonts | Inter font family                      |
 | Java 21 + Spring Boot 4 | REST API (`backend/`) |
 | Spring Data JPA / Hibernate | Data access |
@@ -129,7 +128,8 @@ Connecting the front-end to the API is Phase 3 of the [roadmap](#-roadmap).
 dismar_stock/
 ├── index.html            # Main application page
 ├── style.css             # Application styles
-├── script.js             # Application logic and data management
+├── script.js             # Pages, modals and rendering
+├── api.js                # HTTP client for the REST API
 ├── dismar_PNG.png        # Application icon
 ├── logo_dismar_PNG.png   # Project logo
 ├── backend/              # REST API (Java + Spring Boot)
@@ -157,7 +157,7 @@ dismar_stock/
 
 ## 🚀 Getting Started
 
-The front-end still runs on its own using `localStorage`, and it doesn't require any dependency installation. Connecting it to the API is the next phase of the roadmap (see below).
+The front-end has no dependencies to install, but it needs the API running to load and save data.
 
 ### 1. Clone the repository
 
@@ -171,19 +171,7 @@ git clone https://github.com/sknpz/dismar_stock.git
 cd dismar_stock
 ```
 
-### 3. Run the application
-
-Open:
-
-```text
-index.html
-```
-
-directly in your browser.
-
-For development, you can also run the project using a local web server such as the **Live Server** extension for Visual Studio Code. The API's CORS configuration already allows Live Server's default origin (`http://localhost:5500`), which will matter once the front-end starts calling the API.
-
-### Running the API
+### 3. Run the API
 
 Requirements: **Java 21** and **Docker**. Maven is not required, because the project includes the Maven Wrapper (`mvnw`).
 
@@ -210,6 +198,27 @@ Interactive documentation: **http://localhost:8080/swagger-ui.html**
 
 Run the tests with `./mvnw test`. Docker must be running, because Testcontainers starts a temporary PostgreSQL.
 
+### 4. Run the front-end
+
+Serve the project folder on port **5500**, for example with the **Live Server** extension for Visual Studio Code, or with:
+
+```bash
+python -m http.server 5500
+```
+
+Then open **http://localhost:5500**.
+
+> Opening `index.html` directly from the file system (`file://`) does not work: the browser sends the request with a `null` origin, which the API's CORS configuration rejects. To use another port, add its origin to `CORS_ALLOWED_ORIGINS`.
+
+The front-end calls the API at `http://localhost:8080`. To point it somewhere else, define `window.DISMAR_API_URL` before `api.js` is loaded:
+
+```html
+<script>window.DISMAR_API_URL = 'https://my-api.example.com';</script>
+<script src="api.js"></script>
+```
+
+If the API is unreachable, each page shows an error message with a **Tentar novamente** (try again) button instead of empty data.
+
 ---
 
 ## 🔌 API
@@ -225,6 +234,7 @@ Run the tests with `./mvnw test`. Docker must be running, because Testcontainers
 | `POST` | `/api/products/{id}/movements` | Register a stock entry (`ENTRY`) or exit (`EXIT`) |
 | `GET` | `/api/movements?type=&productId=` | Paginated movement history |
 | `GET` | `/api/reports/summary` | Dashboard indicators and value by category |
+| `GET` | `/api/reports/top-products?limit=` | Products with the highest stock value (quantity × unit price), 1 to 50 |
 
 ### Business rules
 
@@ -248,20 +258,18 @@ Run the tests with `./mvnw test`. Docker must be running, because Testcontainers
 
 ## 💾 Data Storage
 
-Data currently lives in two independent places:
+| Where | What |
+| --- | --- |
+| PostgreSQL (through the API) | Categories, suppliers, products and stock movements. See [Data Model](#-data-model). |
+| Browser `localStorage` | Only the theme preference (`dismar_v2_config`). |
 
-| Where | What | Notes |
-| --- | --- | --- |
-| Browser `localStorage` (front-end) | Products, suppliers, stock movements, theme and configuration | Tied to the browser and device. Clearing the browser's storage removes the data. |
-| PostgreSQL (API) | Categories, suppliers, products and stock movements | Persistent on the server, with constraints enforced by the database. See [Data Model](#-data-model). |
-
-The two are not synchronized yet: data created in the front-end does not reach the API, and vice versa. Phase 3 replaces `localStorage` with API calls, keeping only the theme preference in the browser.
+Data saved by versions before Phase 3 (`dismar_v2_products`, `dismar_v2_suppliers` and `dismar_v2_movements` in `localStorage`) is no longer read, and it isn't imported into the database automatically. It is left untouched in the browser.
 
 ---
 
 ## 🗄️ Data Model
 
-The application is being migrated from `localStorage` to a **PostgreSQL** database (hosted on Supabase), accessed through a REST API. The schema is versioned with Flyway in [`V1__create_schema.sql`](backend/src/main/resources/db/migration/V1__create_schema.sql).
+Data is stored in a **PostgreSQL** database (Supabase is the planned host), accessed through the REST API. The schema is versioned with Flyway in [`V1__create_schema.sql`](backend/src/main/resources/db/migration/V1__create_schema.sql).
 
 ```mermaid
 erDiagram
@@ -329,7 +337,6 @@ Sample data for development is available in [`dev_seed.sql`](backend/src/main/re
 
 The current version does not yet include:
 
-* Front-end integration with the API (the UI still uses `localStorage`, so data isn't shared across devices)
 * User authentication
 * Multi-user accounts
 * Multi-company support
@@ -345,7 +352,7 @@ The project is evolving from a browser-only app into a full-stack application:
 * [x] **Phase 0:** Front-end fixes (XSS protection, real dashboard metrics, modal bugs)
 * [x] **Phase 1:** Relational data model (PostgreSQL + Flyway migrations)
 * [x] **Phase 2:** REST API with Java + Spring Boot
-* [ ] **Phase 3:** Front-end consuming the API instead of `localStorage`
+* [x] **Phase 3:** Front-end consuming the API instead of `localStorage`
 * [ ] **Phase 4:** User authentication with JWT
 * [ ] **Phase 5:** Automated tests (JUnit) and CI with GitHub Actions
 * [ ] **Phase 6:** Docker and cloud deployment
