@@ -12,13 +12,53 @@
       }
     }
 
+    // Sessão do usuário logado: token JWT, validade e dados do usuário, guardados no localStorage
+    const session = (() => {
+      const SESSION_KEY = 'dismar_v2_session';
+
+      const clear = () => localStorage.removeItem(SESSION_KEY);
+
+      const get = () => {
+        let stored = null;
+        try {
+          stored = JSON.parse(localStorage.getItem(SESSION_KEY));
+        } catch {
+          // valor corrompido: trata como deslogado
+        }
+        if (!stored || new Date(stored.expiresAt) <= new Date()) {
+          clear();
+          return null;
+        }
+        return stored;
+      };
+
+      const save = (loginResponse) => {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({
+          token: loginResponse.accessToken,
+          expiresAt: loginResponse.expiresAt,
+          user: loginResponse.user
+        }));
+      };
+
+      const updateUser = (user) => {
+        const current = get();
+        if (current) localStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, user }));
+      };
+
+      return { get, save, clear, updateUser, user: () => get()?.user ?? null };
+    })();
+
     const api = (() => {
       async function request(method, path, body) {
+        const headers = body === undefined ? {} : { 'Content-Type': 'application/json' };
+        const token = session.get()?.token;
+        if (token) headers.Authorization = `Bearer ${token}`;
+
         let response;
         try {
           response = await fetch(API_BASE_URL + path, {
             method,
-            headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+            headers,
             body: body === undefined ? undefined : JSON.stringify(body)
           });
         } catch {
@@ -30,7 +70,13 @@
 
         const data = await response.json().catch(() => null);
         if (!response.ok) {
-          throw new ApiError(data?.detail || `A API respondeu com erro ${response.status}.`, response.status, data?.errors || {});
+          const error = new ApiError(data?.detail || `A API respondeu com erro ${response.status}.`, response.status, data?.errors || {});
+          // 401 fora do login significa token expirado ou usuário desativado: encerra a sessão
+          if (response.status === 401 && path !== '/api/auth/login') {
+            session.clear();
+            api.onUnauthorized(error.message);
+          }
+          throw error;
         }
         return data;
       }
@@ -46,6 +92,26 @@
       };
 
       return {
+        // Chamado quando a sessão deixa de valer; o script.js troca para a tela de login
+        onUnauthorized: () => {},
+
+        auth: {
+          login: async (email, password) => {
+            const response = await request('POST', '/api/auth/login', { email, password });
+            session.save(response);
+            return response.user;
+          },
+          logout: () => session.clear(),
+          me: () => request('GET', '/api/auth/me'),
+          changePassword: (currentPassword, newPassword) =>
+            request('PUT', '/api/auth/password', { currentPassword, newPassword })
+        },
+        users: {
+          list: () => request('GET', '/api/users'),
+          get: (id) => request('GET', `/api/users/${id}`),
+          create: (user) => request('POST', '/api/users', user),
+          update: (id, user) => request('PUT', `/api/users/${id}`, user)
+        },
         categories: {
           list: () => request('GET', '/api/categories'),
           create: (name) => request('POST', '/api/categories', { name })

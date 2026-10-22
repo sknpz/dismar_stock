@@ -132,8 +132,37 @@
       justify-content: center;
     }
 
-    .theme-toggle {
+    .user-box {
       margin-top: auto;
+      margin-bottom: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      font-size: 14px;
+    }
+
+    .user-info strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-info small {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .theme-toggle {
       padding: 12px;
       background: var(--bg-light);
       border-radius: 10px;
@@ -623,6 +652,53 @@
     .form-input:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+    }
+
+    /* Elementos com o atributo hidden somem mesmo quando a classe define display */
+    [hidden] {
+      display: none !important;
+    }
+
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg-white);
+      border-radius: 20px;
+      padding: 40px 32px;
+      box-shadow: 0 20px 60px var(--shadow);
+    }
+
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .login-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 4px 0 24px;
+    }
+
+    .login-submit {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .form-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      cursor: pointer;
     }
 
     .pagination {
