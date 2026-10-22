@@ -177,9 +177,27 @@
       document.getElementById('retryBtn').addEventListener('click', () => showPage(currentPage));
     }
 
+    // Menu lateral no celular e tablet (abaixo de 1024px): abre por cima do conteúdo
+    const sidebar = document.getElementById('sidebar');
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+    function setMenuOpen(open) {
+      sidebar.classList.toggle('open', open);
+      sidebarBackdrop.classList.toggle('open', open);
+      menuToggle.setAttribute('aria-expanded', String(open));
+    }
+
+    menuToggle.addEventListener('click', () => setMenuOpen(!sidebar.classList.contains('open')));
+    sidebarBackdrop.addEventListener('click', () => setMenuOpen(false));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    });
+
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.preventDefault();
+        setMenuOpen(false);
         resetFilters();
         navigateTo(e.currentTarget.dataset.page);
       });
@@ -262,7 +280,7 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div class="dashboard-grid">
           <div class="card">
             <div class="card-header">
               <h3 class="card-title">Produtos Mais Valiosos</h3>
@@ -1203,6 +1221,7 @@
 
     // Modal Alterar Senha
     function openPasswordModal() {
+      setMenuOpen(false);
       const form = document.getElementById('passwordForm');
       form.reset();
       clearFormError(form);
@@ -1261,6 +1280,7 @@
     }
 
     function showLogin(message = '') {
+      setMenuOpen(false);
       document.querySelectorAll('.modal.open').forEach(modal => modal.classList.remove('open'));
       document.getElementById('app').hidden = true;
       document.getElementById('loginScreen').hidden = false;
