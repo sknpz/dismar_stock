@@ -1,5 +1,5 @@
 -- No Supabase, as tabelas do schema public também ficam acessíveis pela Data API (PostgREST)
--- para quem tiver a chave anônima do projeto. O Dismar Stock não usa essa API: ligar o RLS sem
+-- para quem tiver a chave anônima do projeto. O Tana Stock não usa essa API: ligar o RLS sem
 -- nenhuma política bloqueia esse acesso. A API Java conecta como dona das tabelas e não é afetada.
 -- Em um PostgreSQL comum (desenvolvimento e testes) não muda nada.
 -- A flyway_schema_history fica de fora: o Flyway mantém essa tabela travada durante a migração.

@@ -11,14 +11,14 @@ RUN ./mvnw -B -q dependency:go-offline
 
 COPY src/ src/
 RUN ./mvnw -B -q package -DskipTests -Djacoco.skip=true \
-    && cp target/dismar-stock-api-*.jar app.jar \
+    && cp target/tana-stock-api-*.jar app.jar \
     && java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 
 # Etapa 2: só o JRE e a aplicação extraída, rodando sem root
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN addgroup -S dismar && adduser -S dismar -G dismar
-USER dismar
+RUN addgroup -S tana && adduser -S tana -G tana
+USER tana
 
 # Camadas da que muda menos para a que muda mais: um deploy só de código reenvia apenas a última
 COPY --from=build /build/extracted/dependencies/ ./

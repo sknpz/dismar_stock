@@ -1,5 +1,5 @@
     // Preferências de interface (tema e moeda). Os dados de estoque vêm da API (ver api.js).
-    const CONFIG_KEY = 'dismar_v2_config';
+    const CONFIG_KEY = 'tana_config';
     let config = JSON.parse(localStorage.getItem(CONFIG_KEY)) || { theme: 'light', currency: 'BRL' };
 
     const saveConfig = () => localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
@@ -264,7 +264,7 @@
           <div class="stat-card">
             <div class="stat-header">
               <span class="stat-title">Valor Total</span>
-              <div class="stat-icon" style="background: rgba(155, 0, 0, 0.1); color: var(--primary);">💰</div>
+              <div class="stat-icon" style="background: rgba(67, 56, 202, 0.1); color: var(--primary);">💰</div>
             </div>
             <div class="stat-value">${formatMoney(summary.totalValue)}</div>
             <span class="stat-change">Média de ${formatMoney(summary.averageValuePerProduct)} por produto</span>
@@ -652,7 +652,7 @@
           <div class="stat-card">
             <div class="stat-header">
               <span class="stat-title">Valor Médio por Produto</span>
-              <div class="stat-icon" style="background: rgba(155, 0, 0, 0.1); color: var(--primary);">💵</div>
+              <div class="stat-icon" style="background: rgba(67, 56, 202, 0.1); color: var(--primary);">💵</div>
             </div>
             <div class="stat-value">${formatMoney(summary.averageValuePerProduct)}</div>
           </div>

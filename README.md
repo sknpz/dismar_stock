@@ -1,7 +1,7 @@
-# Dismar Stock
+# Tana Stock
 
 <p align="center">
-  <img src="logo_dismar_PNG.png" alt="Dismar Stock Logo" width="220">
+  <img src="logo.svg" alt="Tana Stock logo" width="120">
 </p>
 
 <p align="center">
@@ -16,12 +16,12 @@
   <img src="https://img.shields.io/badge/Spring_Boot_4-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot 4">
   <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
-  <a href="https://github.com/sknpz/dismar_stock/actions/workflows/ci.yml"><img src="https://github.com/sknpz/dismar_stock/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/sknpz/tana-stock/actions/workflows/ci.yml"><img src="https://github.com/sknpz/tana-stock/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 ## 📦 About the Project
 
-**Dismar Stock** is an inventory management system designed to make product, supplier, and stock control simple and organized.
+**Tana Stock** (*tana*, 棚, is Japanese for "shelf") is an inventory management system designed to make product, supplier, and stock control simple and organized.
 
 The application provides a complete dashboard with inventory statistics, product and supplier management, stock movement history, reports, low-stock alerts, and theme customization.
 
@@ -140,13 +140,12 @@ The project has two parts:
 ## 📁 Project Structure
 
 ```text
-dismar_stock/
+tana-stock/
 ├── index.html            # Main application page
 ├── style.css             # Application styles
 ├── script.js             # Pages, modals and rendering
 ├── api.js                # HTTP client for the REST API
-├── dismar_PNG.png        # Application icon
-├── logo_dismar_PNG.png   # Project logo
+├── logo.svg              # Logo and favicon
 ├── render.yaml           # Render Blueprint (API deployment)
 ├── .github/workflows/    # CI (GitHub Actions)
 ├── backend/              # REST API (Java + Spring Boot)
@@ -155,7 +154,7 @@ dismar_stock/
 │   ├── pom.xml
 │   └── src/
 │       ├── main/
-│       │   ├── java/br/com/dismar/stock/
+│       │   ├── java/io/github/sknpz/tana/
 │       │   │   ├── category/ # One package per feature:
 │       │   │   ├── supplier/ #   entity, repository, service,
 │       │   │   ├── product/  #   controller and DTOs together
@@ -182,13 +181,13 @@ The front-end has no dependencies to install, but it needs the API running to lo
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/sknpz/dismar_stock.git
+git clone https://github.com/sknpz/tana-stock.git
 ```
 
 ### 2. Open the project directory
 
 ```bash
-cd dismar_stock
+cd tana-stock
 ```
 
 ### 3. Run the API
@@ -204,22 +203,22 @@ docker compose up -d     # starts PostgreSQL on port 5433
 On startup, Flyway creates the tables automatically. To load the sample data:
 
 ```bash
-docker compose exec -T postgres psql -U dismar -d dismar < src/main/resources/db/seed/dev_seed.sql
+docker compose exec -T postgres psql -U tana -d tana < src/main/resources/db/seed/dev_seed.sql
 ```
 
-The sample data includes two users, both with the password `dismar123`:
+The sample data includes two users, both with the password `estoque123`:
 
 | E-mail | Profile |
 | --- | --- |
-| `admin@dismar.local` | Administrador |
-| `operador@dismar.local` | Usuário |
+| `admin@tana.local` | Administrador |
+| `operador@tana.local` | Usuário |
 
 Interactive documentation: **http://localhost:8080/swagger-ui.html**. Call `POST /api/auth/login`, copy the `accessToken` and paste it into **Authorize** to try the protected endpoints.
 
 | Environment variable | Default | Description |
 | --- | --- | --- |
-| `DB_URL` | `jdbc:postgresql://localhost:5433/dismar` | JDBC connection URL |
-| `DB_USERNAME` / `DB_PASSWORD` | `dismar` / `dismar` | Database credentials (local only) |
+| `DB_URL` | `jdbc:postgresql://localhost:5433/tana` | JDBC connection URL |
+| `DB_USERNAME` / `DB_PASSWORD` | `tana` / `tana` | Database credentials (local only) |
 | `DB_POOL_SIZE` | `10` | Maximum database connections |
 | `PORT` | `8080` | HTTP port |
 | `CORS_ALLOWED_ORIGINS` | Live Server + GitHub Pages | Front-end origins allowed to call the API |
@@ -249,10 +248,10 @@ Then open **http://localhost:5500** and log in (see the sample users above).
 
 > Opening `index.html` directly from the file system (`file://`) does not work: the browser sends the request with a `null` origin, which the API's CORS configuration rejects. To use another port, add its origin to `CORS_ALLOWED_ORIGINS`.
 
-When opened from `localhost`, the front-end calls the API at `http://localhost:8080`; anywhere else (GitHub Pages), it calls the deployed API at `https://dismar-stock-api.onrender.com`. To point it somewhere else, define `window.DISMAR_API_URL` before `api.js` is loaded:
+When opened from `localhost`, the front-end calls the API at `http://localhost:8080`; anywhere else (GitHub Pages), it calls the deployed API at `https://tana-stock-api.onrender.com`. To point it somewhere else, define `window.TANA_API_URL` before `api.js` is loaded:
 
 ```html
-<script>window.DISMAR_API_URL = 'https://my-api.example.com';</script>
+<script>window.TANA_API_URL = 'https://my-api.example.com';</script>
 <script src="api.js"></script>
 ```
 
@@ -287,7 +286,7 @@ Every endpoint except `POST /api/auth/login` requires the header `Authorization:
 
 * **Stock only changes through movements.** `PUT /api/products/{id}` ignores quantity. The initial quantity given on creation is recorded as an `ENTRY` movement ("Estoque inicial"), so every unit in stock has a history.
 * **Exits can't exceed the current balance.** The API responds with `422 Unprocessable Content`.
-* **Concurrent movements are safe.** The product row is locked (`SELECT ... FOR UPDATE`) while a movement is registered, so two simultaneous exits can't read the same balance. [`StockMovementConcurrencyTests`](backend/src/test/java/br/com/dismar/stock/movement/StockMovementConcurrencyTests.java) fires 20 simultaneous exits of 1 unit at a product with 7 in stock and checks that exactly 7 succeed and the final balance is 0.
+* **Concurrent movements are safe.** The product row is locked (`SELECT ... FOR UPDATE`) while a movement is registered, so two simultaneous exits can't read the same balance. [`StockMovementConcurrencyTests`](backend/src/test/java/io/github/sknpz/tana/movement/StockMovementConcurrencyTests.java) fires 20 simultaneous exits of 1 unit at a product with 7 in stock and checks that exactly 7 succeed and the final balance is 0.
 * **CNPJ is validated by its check digits**, with or without punctuation, including the alphanumeric format.
 * **Missing or expired token → `401`; not enough permission → `403`.** Both use the same error format as the rest of the API.
 * **Deactivation and profile changes take effect immediately.** The token carries only the user id; on every request the API checks the user's current status and profile in the database.
@@ -323,7 +322,7 @@ Docker must be running: the integration tests start a temporary PostgreSQL with 
 | **Integration** (MockMvc + Testcontainers) | Every endpoint through the full HTTP stack, including Spring Security: validation errors, conflicts, soft delete, filters and pagination, reports, users and profiles, 401/403, CORS |
 | **Concurrency** | 20 simultaneous exits against a product with 7 units: exactly 7 succeed |
 
-All integration tests extend [`IntegrationTest`](backend/src/test/java/br/com/dismar/stock/IntegrationTest.java) and share one Spring context and one database container. Each test creates its own data with unique names instead of relying on an empty database.
+All integration tests extend [`IntegrationTest`](backend/src/test/java/io/github/sknpz/tana/IntegrationTest.java) and share one Spring context and one database container. Each test creates its own data with unique names instead of relying on an empty database.
 
 `./mvnw verify` also writes the coverage report to `backend/target/site/jacoco/index.html` and **fails if coverage drops below 85% of lines or 70% of branches**.
 
@@ -368,7 +367,7 @@ All integration tests extend [`IntegrationTest`](backend/src/test/java/br/com/di
 | Where | What |
 | --- | --- |
 | PostgreSQL (through the API) | Categories, suppliers, products and stock movements. See [Data Model](#-data-model). |
-| Browser `localStorage` | The theme preference (`dismar_v2_config`) and the login session (`dismar_v2_session`: token, expiration and user). Logging out removes the session. |
+| Browser `localStorage` | The theme preference (`tana_config`) and the login session (`tana_session`: token, expiration and user). Logging out removes the session. |
 
 ---
 
@@ -489,7 +488,7 @@ Ideas for later:
 
 ## 🎯 Project Goals
 
-Dismar Stock was created as a practical inventory management solution while also serving as a project for developing and applying skills involving:
+Tana Stock was created as a practical inventory management solution while also serving as a project for developing and applying skills involving:
 
 * Front-end development
 * JavaScript

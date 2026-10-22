@@ -1,18 +1,20 @@
+name: tana-stock
+
 # PostgreSQL local para desenvolvimento: docker compose up -d
 # API em container, com a mesma imagem do deploy: docker compose --profile api up -d --build
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: dismar
-      POSTGRES_USER: dismar
-      POSTGRES_PASSWORD: dismar
+      POSTGRES_DB: tana
+      POSTGRES_USER: tana
+      POSTGRES_PASSWORD: tana
     ports:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dismar -d dismar"]
+      test: ["CMD-SHELL", "pg_isready -U tana -d tana"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -24,9 +26,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/dismar
-      DB_USERNAME: dismar
-      DB_PASSWORD: dismar
+      DB_URL: jdbc:postgresql://postgres:5432/tana
+      DB_USERNAME: tana
+      DB_PASSWORD: tana
       JWT_SECRET: ${JWT_SECRET:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
