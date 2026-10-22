@@ -1,0 +1,86 @@
+# Integração contínua: roda a cada push na main e em todo pull request
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Um push novo no mesmo pull request cancela a execução anterior, que ficou desatualizada
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: API (testes e cobertura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # O runner já tem Docker: o Testcontainers sobe o PostgreSQL usado pelos testes.
+      # verify roda os testes e falha se a cobertura ficar abaixo do mínimo do pom.xml (JaCoCo).
+      - name: Testes e cobertura
+        run: ./mvnw -B verify
+
+      - name: Resumo da cobertura
+        if: always()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import csv, pathlib
+          report = pathlib.Path('target/site/jacoco/jacoco.csv')
+          if not report.exists():
+              print('Cobertura indisponível: os testes não chegaram a rodar.')
+          else:
+              rows = list(csv.DictReader(report.open(encoding='utf-8')))
+              def ratio(kind):
+                  covered = sum(int(r[kind + '_COVERED']) for r in rows)
+                  missed = sum(int(r[kind + '_MISSED']) for r in rows)
+                  return 100 * covered / (covered + missed)
+              print('### Cobertura de testes')
+              print()
+              print('| Linhas | Ramos |')
+              print('| --- | --- |')
+              print(f"| {ratio('LINE'):.1f}% | {ratio('BRANCH'):.1f}% |")
+          EOF
+
+      - name: Publica os relatórios de testes e cobertura
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: relatorios-api
+          path: |
+            backend/target/surefire-reports/
+            backend/target/site/jacoco/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  frontend:
+    name: Front-end (sintaxe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Verifica a sintaxe do JavaScript
+        run: |
+          for file in api.js script.js; do
+            node --check "$file"
+          done
