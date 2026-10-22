@@ -75,24 +75,27 @@
         <button class="close-btn" id="closeProductModal">×</button>
       </div>
       <form id="productForm">
+        <div class="form-error" role="alert" hidden></div>
         <div class="form-group">
           <label class="form-label">Nome do Produto *</label>
-          <input type="text" class="form-input" name="name" required>
+          <input type="text" class="form-input" name="name" maxlength="150" required>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">SKU</label>
-            <input type="text" class="form-input" name="sku">
+            <input type="text" class="form-input" name="sku" maxlength="50">
           </div>
           <div class="form-group">
             <label class="form-label">Categoria</label>
-            <input type="text" class="form-input" name="category">
+            <input type="text" class="form-input" name="category" list="categoryOptions" maxlength="80" autocomplete="off" placeholder="Escolha ou digite uma nova">
+            <datalist id="categoryOptions"></datalist>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Quantidade *</label>
-            <input type="number" class="form-input" name="qty" min="0" required>
+            <input type="number" class="form-input" name="qty" min="0" step="1" required>
+            <small class="form-hint" id="qtyHint" hidden>Para alterar o saldo, use Entrada (➕) ou Saída (➖) na lista de produtos.</small>
           </div>
           <div class="form-group">
             <label class="form-label">Preço Unitário (R$) *</label>
@@ -127,27 +130,28 @@
         <button class="close-btn" id="closeSupplierModal">×</button>
       </div>
       <form id="supplierForm">
+        <div class="form-error" role="alert" hidden></div>
         <div class="form-group">
           <label class="form-label">Nome *</label>
-          <input type="text" class="form-input" name="name" required>
+          <input type="text" class="form-input" name="name" maxlength="150" required>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">CNPJ</label>
-            <input type="text" class="form-input" name="cnpj">
+            <input type="text" class="form-input" name="cnpj" maxlength="18" placeholder="00.000.000/0000-00">
           </div>
           <div class="form-group">
             <label class="form-label">Telefone</label>
-            <input type="tel" class="form-input" name="phone">
+            <input type="tel" class="form-input" name="phone" maxlength="20">
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">E-mail</label>
-          <input type="email" class="form-input" name="email">
+          <input type="email" class="form-input" name="email" maxlength="150">
         </div>
         <div class="form-group">
           <label class="form-label">Endereço</label>
-          <input type="text" class="form-input" name="address">
+          <input type="text" class="form-input" name="address" maxlength="255">
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="cancelSupplier">Cancelar</button>
@@ -156,6 +160,7 @@
       </form>
     </div>
   </div>
-    <script src="script.js"></script>
+  <script src="api.js"></script>
+  <script src="script.js"></script>
 </body>
-</html>
+</html>
