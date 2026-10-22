@@ -109,6 +109,7 @@ The project has two parts:
 * Persistent theme preference
 * Dashboard-style interface
 * Clean and organized navigation
+* Responsive layout: on phones and tablets the menu opens from a ☰ button and wide tables scroll sideways
 
 ---
 
@@ -299,8 +300,6 @@ Every endpoint except `POST /api/auth/login` requires the header `Authorization:
 | PostgreSQL (through the API) | Categories, suppliers, products and stock movements. See [Data Model](#-data-model). |
 | Browser `localStorage` | The theme preference (`dismar_v2_config`) and the login session (`dismar_v2_session`: token, expiration and user). Logging out removes the session. |
 
-Data saved by versions before Phase 3 (`dismar_v2_products`, `dismar_v2_suppliers` and `dismar_v2_movements` in `localStorage`) is no longer read, and it isn't imported into the database automatically. It is left untouched in the browser.
-
 ---
 
 ## 🗄️ Data Model
@@ -411,7 +410,10 @@ Ideas for later:
 
 * [ ] CSV export and PDF reports
 * [ ] Interactive dashboard charts
-* [ ] Improved mobile responsiveness
+* [x] Responsive menu and tables for phones and tablets
+* [ ] Login rate limiting (throttle repeated wrong passwords)
+* [ ] Refresh tokens, so sessions renew without logging in again
+* [ ] Password recovery by e-mail
 
 ---
 
