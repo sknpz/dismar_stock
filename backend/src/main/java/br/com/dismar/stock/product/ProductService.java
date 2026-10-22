@@ -13,6 +13,7 @@ import br.com.dismar.stock.shared.exception.ConflictException;
 import br.com.dismar.stock.shared.exception.ResourceNotFoundException;
 import br.com.dismar.stock.supplier.Supplier;
 import br.com.dismar.stock.supplier.SupplierService;
+import br.com.dismar.stock.user.CurrentUser;
 
 @Service
 public class ProductService {
@@ -23,13 +24,15 @@ public class ProductService {
     private final StockMovementRepository movementRepository;
     private final CategoryService categoryService;
     private final SupplierService supplierService;
+    private final CurrentUser currentUser;
 
     public ProductService(ProductRepository productRepository, StockMovementRepository movementRepository,
-            CategoryService categoryService, SupplierService supplierService) {
+            CategoryService categoryService, SupplierService supplierService, CurrentUser currentUser) {
         this.productRepository = productRepository;
         this.movementRepository = movementRepository;
         this.categoryService = categoryService;
         this.supplierService = supplierService;
+        this.currentUser = currentUser;
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +62,8 @@ public class ProductService {
 
         int initialQuantity = request.initialQuantity() != null ? request.initialQuantity() : 0;
         if (initialQuantity > 0) {
-            movementRepository.save(product.registerMovement(MovementType.ENTRY, initialQuantity, "Estoque inicial"));
+            movementRepository.save(product.registerMovement(MovementType.ENTRY, initialQuantity, "Estoque inicial",
+                    currentUser.reference().orElse(null)));
         }
         return ProductResponse.from(product);
     }
