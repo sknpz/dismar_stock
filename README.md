@@ -106,8 +106,12 @@ Data is currently stored locally in the browser using `localStorage`, allowing t
 | JavaScript   | Application logic and DOM manipulation |
 | LocalStorage | Browser-side data persistence          |
 | Google Fonts | Inter font family                      |
-| PostgreSQL   | Relational database *(in progress, see [Data Model](#-data-model))* |
-| Flyway       | Versioned database migrations *(in progress)* |
+| Java 21 + Spring Boot 4 | REST API (`backend/`) |
+| Spring Data JPA / Hibernate | Data access |
+| PostgreSQL   | Relational database (see [Data Model](#-data-model)) |
+| Flyway       | Versioned database migrations |
+| springdoc-openapi | Interactive API documentation (Swagger UI) |
+| Testcontainers | Disposable PostgreSQL for automated tests |
 
 ---
 
@@ -120,10 +124,21 @@ dismar_stock/
 ├── script.js             # Application logic and data management
 ├── dismar_PNG.png        # Application icon
 ├── logo_dismar_PNG.png   # Project logo
-├── backend/
-│   └── src/main/resources/db/
-│       ├── migration/    # Flyway migrations (database schema)
-│       └── seed/         # Sample data for development
+├── backend/              # REST API (Java + Spring Boot)
+│   ├── compose.yaml      # Local PostgreSQL for development
+│   ├── pom.xml
+│   └── src/main/
+│       ├── java/br/com/dismar/stock/
+│       │   ├── category/ # One package per feature:
+│       │   ├── supplier/ #   entity, repository, service,
+│       │   ├── product/  #   controller and DTOs together
+│       │   ├── movement/
+│       │   ├── report/
+│       │   ├── config/
+│       │   └── shared/   # Error handling, CNPJ validation
+│       └── resources/db/
+│           ├── migration/ # Flyway migrations (database schema)
+│           └── seed/      # Sample data for development
 ├── LICENSE               # MIT License
 └── README.md             # Project documentation
 ```
@@ -132,7 +147,7 @@ dismar_stock/
 
 ## 🚀 Getting Started
 
-Dismar Stock is a front-end application and does not currently require dependency installation.
+The front-end still runs on its own using `localStorage`, and it doesn't require any dependency installation. Connecting it to the API is the next phase of the roadmap (see below).
 
 ### 1. Clone the repository
 
@@ -157,6 +172,67 @@ index.html
 directly in your browser.
 
 For development, you can also run the project using a local web server such as the **Live Server** extension for Visual Studio Code.
+
+### Running the API
+
+Requirements: **Java 21** and **Docker**. Maven is not required, because the project includes the Maven Wrapper (`mvnw`).
+
+```bash
+cd backend
+docker compose up -d     # starts PostgreSQL on port 5433
+./mvnw spring-boot:run   # starts the API on http://localhost:8080
+```
+
+On startup, Flyway creates the tables automatically. To load the sample data:
+
+```bash
+docker compose exec -T postgres psql -U dismar -d dismar < src/main/resources/db/seed/dev_seed.sql
+```
+
+Interactive documentation: **http://localhost:8080/swagger-ui.html**
+
+| Environment variable | Default | Description |
+| --- | --- | --- |
+| `DB_URL` | `jdbc:postgresql://localhost:5433/dismar` | JDBC connection URL |
+| `DB_USERNAME` / `DB_PASSWORD` | `dismar` / `dismar` | Database credentials (local only) |
+| `PORT` | `8080` | HTTP port |
+| `CORS_ALLOWED_ORIGINS` | Live Server + GitHub Pages | Front-end origins allowed to call the API |
+
+Run the tests with `./mvnw test`. Docker must be running, because Testcontainers starts a temporary PostgreSQL.
+
+---
+
+## 🔌 API
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/categories` | List categories |
+| `POST` / `PUT` / `DELETE` | `/api/categories[/{id}]` | Create, rename, delete |
+| `GET` | `/api/suppliers?search=` | List suppliers (search by name, CNPJ or e-mail) |
+| `GET` / `POST` / `PUT` / `DELETE` | `/api/suppliers[/{id}]` | Supplier CRUD |
+| `GET` | `/api/products?search=&status=&categoryId=&supplierId=&page=&size=&sort=` | Paginated product list with filters |
+| `GET` / `POST` / `PUT` / `DELETE` | `/api/products[/{id}]` | Product CRUD (delete is a soft delete) |
+| `POST` | `/api/products/{id}/movements` | Register a stock entry (`ENTRY`) or exit (`EXIT`) |
+| `GET` | `/api/movements?type=&productId=` | Paginated movement history |
+| `GET` | `/api/reports/summary` | Dashboard indicators and value by category |
+
+### Business rules
+
+* **Stock only changes through movements.** `PUT /api/products/{id}` ignores quantity. The initial quantity given on creation is recorded as an `ENTRY` movement ("Estoque inicial"), so every unit in stock has a history.
+* **Exits can't exceed the current balance.** The API responds with `422 Unprocessable Content`.
+* **Concurrent movements are safe.** The product row is locked (`SELECT ... FOR UPDATE`) while a movement is registered, so two simultaneous exits can't read the same balance. In a test, 20 simultaneous exits of 1 unit on a product with 7 resulted in exactly 7 successes and a final balance of 0.
+* **CNPJ is validated by its check digits**, with or without punctuation, including the alphanumeric format.
+* **Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) (Problem Details)**, with per-field messages on validation errors:
+
+```json
+{
+  "title": "Dados inválidos",
+  "status": 400,
+  "detail": "Um ou mais campos são inválidos.",
+  "instance": "/api/products",
+  "errors": { "unitPrice": "O preço unitário não pode ser negativo." }
+}
+```
 
 ---
 
@@ -264,7 +340,7 @@ The project is evolving from a browser-only app into a full-stack application:
 
 * [x] **Phase 0:** Front-end fixes (XSS protection, real dashboard metrics, modal bugs)
 * [x] **Phase 1:** Relational data model (PostgreSQL + Flyway migrations)
-* [ ] **Phase 2:** REST API with Java + Spring Boot
+* [x] **Phase 2:** REST API with Java + Spring Boot
 * [ ] **Phase 3:** Front-end consuming the API instead of `localStorage`
 * [ ] **Phase 4:** User authentication with JWT
 * [ ] **Phase 5:** Automated tests (JUnit) and CI with GitHub Actions
