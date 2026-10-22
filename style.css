@@ -650,6 +650,23 @@
       font-size: 13px;
     }
 
+    .server-notice {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      z-index: 2000;
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: calc(100% - 32px);
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: var(--text-dark);
+      color: var(--bg-white);
+      font-size: 13px;
+      text-align: center;
+      box-shadow: 0 4px 16px var(--shadow);
+    }
+
     .form-error ul {
       margin: 6px 0 0 18px;
     }
