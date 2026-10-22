@@ -13,6 +13,11 @@
 </head>
 <body>
   <!-- Tela de login: exibida enquanto não há sessão válida -->
+  <!-- No plano gratuito do Render a API desliga quando fica sem uso e leva um tempo para voltar -->
+  <div class="server-notice" id="serverNotice" role="status" hidden>
+    Iniciando o servidor... a primeira resposta pode levar cerca de 1 minuto.
+  </div>
+
   <div class="login-screen" id="loginScreen" hidden>
     <div class="login-card">
       <div class="brand">

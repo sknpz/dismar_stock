@@ -1294,6 +1294,11 @@
     // Token expirado ou usuário desativado durante o uso: volta para o login com a mensagem da API
     api.onUnauthorized = (message) => showLogin(message);
 
+    // API acordando no Render: mostra o aviso enquanto as respostas não chegam
+    api.onSlowServer = (slow) => {
+      document.getElementById('serverNotice').hidden = !slow;
+    };
+
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;

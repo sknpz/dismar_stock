@@ -1,7 +1,10 @@
     // Cliente da API REST do Dismar Stock (backend/ em Java + Spring Boot)
 
-    // Endereço da API. Pode ser sobrescrito definindo window.DISMAR_API_URL antes de carregar este arquivo.
-    const API_BASE_URL = window.DISMAR_API_URL || 'http://localhost:8080';
+    // Endereço da API: a local durante o desenvolvimento e a publicada no Render quando o front está
+    // no GitHub Pages. Pode ser sobrescrito definindo window.DISMAR_API_URL antes de carregar este arquivo.
+    const LOCAL_HOSTS = ['localhost', '127.0.0.1', ''];
+    const API_BASE_URL = window.DISMAR_API_URL
+      || (LOCAL_HOSTS.includes(location.hostname) ? 'http://localhost:8080' : 'https://dismar-stock-api.onrender.com');
 
     // Erro devolvido pela API no formato Problem Details (RFC 9457)
     class ApiError extends Error {
@@ -49,6 +52,22 @@
     })();
 
     const api = (() => {
+      // No plano gratuito do Render a API desliga depois de 15 minutos sem uso, e a primeira requisição
+      // espera ela iniciar de novo. Se a resposta demorar, o script.js avisa o usuário (api.onSlowServer).
+      const SLOW_REQUEST_MS = 3000;
+      let pendingRequests = 0;
+      let slowTimer = null;
+
+      function trackRequest(promise) {
+        if (pendingRequests++ === 0) slowTimer = setTimeout(() => api.onSlowServer(true), SLOW_REQUEST_MS);
+        return promise.finally(() => {
+          if (--pendingRequests === 0) {
+            clearTimeout(slowTimer);
+            api.onSlowServer(false);
+          }
+        });
+      }
+
       async function request(method, path, body) {
         const headers = body === undefined ? {} : { 'Content-Type': 'application/json' };
         const token = session.get()?.token;
@@ -56,11 +75,11 @@
 
         let response;
         try {
-          response = await fetch(API_BASE_URL + path, {
+          response = await trackRequest(fetch(API_BASE_URL + path, {
             method,
             headers,
             body: body === undefined ? undefined : JSON.stringify(body)
-          });
+          }));
         } catch {
           // fetch só rejeita quando não há resposta: API fora do ar, endereço errado ou CORS bloqueado
           throw new ApiError(`Não foi possível conectar à API em ${API_BASE_URL}. Verifique se o backend está rodando.`, 0);
@@ -94,6 +113,8 @@
       return {
         // Chamado quando a sessão deixa de valer; o script.js troca para a tela de login
         onUnauthorized: () => {},
+        // Chamado com true quando a API demora a responder e com false quando todas as respostas chegam
+        onSlowServer: () => {},
 
         auth: {
           login: async (email, password) => {

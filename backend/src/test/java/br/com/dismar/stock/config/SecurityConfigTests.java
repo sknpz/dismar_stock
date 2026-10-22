@@ -41,6 +41,17 @@ class SecurityConfigTests extends IntegrationTest {
     }
 
     @Test
+    void healthCheckIsPublicButOtherActuatorEndpointsAreNotExposed() throws Exception {
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components").doesNotExist());
+        mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void unknownRouteStillRequiresToken() throws Exception {
         mockMvc.perform(get("/api/rota-que-nao-existe")).andExpect(status().isUnauthorized());
     }
