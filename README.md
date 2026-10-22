@@ -5,23 +5,31 @@
 </p>
 
 <p align="center">
-  A lightweight inventory management web application built with HTML, CSS and vanilla JavaScript.
+  An inventory management application with a vanilla JavaScript front-end and a Java + Spring Boot REST API backed by PostgreSQL.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white" alt="HTML5">
   <img src="https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white" alt="CSS3">
   <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black" alt="JavaScript">
+  <img src="https://img.shields.io/badge/Java_21-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java 21">
+  <img src="https://img.shields.io/badge/Spring_Boot_4-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot 4">
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
 </p>
 
 ## 📦 About the Project
 
-**Dismar Stock** is a browser-based inventory management system designed to make product, supplier, and stock control simple and organized.
+**Dismar Stock** is an inventory management system designed to make product, supplier, and stock control simple and organized.
 
 The application provides a complete dashboard with inventory statistics, product and supplier management, stock movement history, reports, low-stock alerts, and theme customization.
 
-Data is currently stored locally in the browser using `localStorage`, allowing the application to run without requiring a backend server or database.
+The project has two parts:
+
+* **Front-end** (`index.html`, `style.css`, `script.js`): runs in the browser and, for now, still stores its data in `localStorage`.
+* **REST API** (`backend/`): Java 21 + Spring Boot, persisting data in PostgreSQL and enforcing the business rules on the server.
+
+Connecting the front-end to the API is Phase 3 of the [roadmap](#-roadmap).
 
 ## ✨ Features
 
@@ -127,18 +135,20 @@ dismar_stock/
 ├── backend/              # REST API (Java + Spring Boot)
 │   ├── compose.yaml      # Local PostgreSQL for development
 │   ├── pom.xml
-│   └── src/main/
-│       ├── java/br/com/dismar/stock/
-│       │   ├── category/ # One package per feature:
-│       │   ├── supplier/ #   entity, repository, service,
-│       │   ├── product/  #   controller and DTOs together
-│       │   ├── movement/
-│       │   ├── report/
-│       │   ├── config/
-│       │   └── shared/   # Error handling, CNPJ validation
-│       └── resources/db/
-│           ├── migration/ # Flyway migrations (database schema)
-│           └── seed/      # Sample data for development
+│   └── src/
+│       ├── main/
+│       │   ├── java/br/com/dismar/stock/
+│       │   │   ├── category/ # One package per feature:
+│       │   │   ├── supplier/ #   entity, repository, service,
+│       │   │   ├── product/  #   controller and DTOs together
+│       │   │   ├── movement/
+│       │   │   ├── report/
+│       │   │   ├── config/
+│       │   │   └── shared/   # Error handling, CNPJ validation
+│       │   └── resources/db/
+│       │       ├── migration/ # Flyway migrations (database schema)
+│       │       └── seed/      # Sample data for development
+│       └── test/          # Integration tests (Testcontainers)
 ├── LICENSE               # MIT License
 └── README.md             # Project documentation
 ```
@@ -171,7 +181,7 @@ index.html
 
 directly in your browser.
 
-For development, you can also run the project using a local web server such as the **Live Server** extension for Visual Studio Code.
+For development, you can also run the project using a local web server such as the **Live Server** extension for Visual Studio Code. The API's CORS configuration already allows Live Server's default origin (`http://localhost:5500`), which will matter once the front-end starts calling the API.
 
 ### Running the API
 
@@ -220,7 +230,7 @@ Run the tests with `./mvnw test`. Docker must be running, because Testcontainers
 
 * **Stock only changes through movements.** `PUT /api/products/{id}` ignores quantity. The initial quantity given on creation is recorded as an `ENTRY` movement ("Estoque inicial"), so every unit in stock has a history.
 * **Exits can't exceed the current balance.** The API responds with `422 Unprocessable Content`.
-* **Concurrent movements are safe.** The product row is locked (`SELECT ... FOR UPDATE`) while a movement is registered, so two simultaneous exits can't read the same balance. In a test, 20 simultaneous exits of 1 unit on a product with 7 resulted in exactly 7 successes and a final balance of 0.
+* **Concurrent movements are safe.** The product row is locked (`SELECT ... FOR UPDATE`) while a movement is registered, so two simultaneous exits can't read the same balance. [`StockMovementConcurrencyTests`](backend/src/test/java/br/com/dismar/stock/movement/StockMovementConcurrencyTests.java) fires 20 simultaneous exits of 1 unit at a product with 7 in stock and checks that exactly 7 succeed and the final balance is 0.
 * **CNPJ is validated by its check digits**, with or without punctuation, including the alphanumeric format.
 * **Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) (Problem Details)**, with per-field messages on validation errors:
 
@@ -238,19 +248,14 @@ Run the tests with `./mvnw test`. Docker must be running, because Testcontainers
 
 ## 💾 Data Storage
 
-Dismar Stock currently stores application data directly in the user's browser using `localStorage`.
+Data currently lives in two independent places:
 
-The following information is stored:
+| Where | What | Notes |
+| --- | --- | --- |
+| Browser `localStorage` (front-end) | Products, suppliers, stock movements, theme and configuration | Tied to the browser and device. Clearing the browser's storage removes the data. |
+| PostgreSQL (API) | Categories, suppliers, products and stock movements | Persistent on the server, with constraints enforced by the database. See [Data Model](#-data-model). |
 
-* Products
-* Suppliers
-* Stock movements
-* Theme preferences
-* Application configuration
-
-Because the data is stored locally, it is associated with the browser and device being used.
-
-Clearing the browser's local storage will remove the saved inventory data.
+The two are not synchronized yet: data created in the front-end does not reach the API, and vice versa. Phase 3 replaces `localStorage` with API calls, keeping only the theme preference in the browser.
 
 ---
 
@@ -324,13 +329,12 @@ Sample data for development is available in [`dev_seed.sql`](backend/src/main/re
 
 The current version does not yet include:
 
+* Front-end integration with the API (the UI still uses `localStorage`, so data isn't shared across devices)
 * User authentication
-* Cloud database synchronization
 * Multi-user accounts
 * Multi-company support
 * Automatic backups
-* Cross-device synchronization
-* Server-side data persistence
+* A deployed API and database (the API currently runs locally)
 
 ---
 
