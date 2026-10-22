@@ -36,6 +36,21 @@ public interface ReportRepository extends Repository<Product, Long> {
             """, nativeQuery = true)
     List<CategoryTotals> valueByCategory();
 
+    // Ordena por um valor calculado (quantidade x preço), o que a listagem paginada de produtos não consegue fazer
+    @Query(value = """
+            SELECT p.id                       AS "id",
+                   p.name                     AS "name",
+                   c.name                     AS "category",
+                   p.quantity                 AS "quantity",
+                   p.quantity * p.unit_price  AS "totalValue"
+            FROM product p
+            LEFT JOIN category c ON c.id = p.category_id
+            WHERE p.active
+            ORDER BY "totalValue" DESC, p.name
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<ProductValue> mostValuableProducts(@Param("limit") int limit);
+
     @Query(value = "SELECT count(*) FROM category", nativeQuery = true)
     long countCategories();
 
@@ -60,5 +75,17 @@ public interface ReportRepository extends Repository<Product, Long> {
         Long getQuantity();
 
         BigDecimal getValue();
+    }
+
+    interface ProductValue {
+        Long getId();
+
+        String getName();
+
+        String getCategory();
+
+        Integer getQuantity();
+
+        BigDecimal getTotalValue();
     }
 }
